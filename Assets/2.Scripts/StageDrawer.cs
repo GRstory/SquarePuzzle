@@ -2,12 +2,13 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
+using UnityEngine.UI;
 
 public class StageDrawer : MonoBehaviour
 {
-    [SerializeField] private GameObject _wallPrefab;
-    [SerializeField] private GameObject _goalPrefab;
-    [SerializeField] private GameObject _playerPrefab;
+    [SerializeField] private Image _wallPrefab;
+    [SerializeField] private Image _goalPrefab;
+    [SerializeField] private Image _playerPrefab;
     //[SerializeField] private LineRenderer _pathLinePrefab;
 
     private List<GameObject> _visualElementList = new List<GameObject>();
@@ -15,6 +16,14 @@ public class StageDrawer : MonoBehaviour
     public void DrawMap(MapData mapData, int moveIndex)
     {
         ClearAll();
+
+        var parentRect = GetComponent<RectTransform>();
+        float cellSizeBasedOnWidth = parentRect.rect.width / mapData.MapSize.x;
+        float cellSizeBasedOnHeight = parentRect.rect.height / mapData.MapSize.y;
+        float cellSize = Mathf.Min(cellSizeBasedOnWidth, cellSizeBasedOnHeight);
+
+        /*float offsetX = mapData.MapSize.x * _cellSize / 2.0f - _cellSize / 2.0f;
+        float offsetY = mapData.MapSize.y * _cellSize / 2.0f - _cellSize / 2.0f;*/
 
         Vector2Int playerPos = Vector2Int.zero;
         Dictionary<Vector2Int, MapObject> objectMap = mapData.MapObjects.ToDictionary(o => new Vector2Int(o.X, o.Y));
@@ -25,8 +34,11 @@ public class StageDrawer : MonoBehaviour
             {
                 var prefab = (objInfo.Type == EMapObjectType.Wall) ? _wallPrefab : _goalPrefab;
 
-                var instance = Instantiate(prefab, new Vector3(objInfo.X, objInfo.Y, 0), Quaternion.identity, transform);
-                _visualElementList.Add(instance);
+                var instance = Instantiate(prefab, transform);
+                var rectTransform = instance.GetComponent<RectTransform>();
+                rectTransform.sizeDelta = new Vector2(cellSize, cellSize);
+                rectTransform.anchoredPosition = new Vector2(objInfo.X * cellSize, objInfo.Y * cellSize);
+                _visualElementList.Add(instance.gameObject);
             }
         }
 
@@ -46,8 +58,11 @@ public class StageDrawer : MonoBehaviour
             playerPos = nextPos;
         }
 
-        var playerInstance = Instantiate(_playerPrefab, new Vector3(playerPos.x, playerPos.y, 0), Quaternion.identity, transform);
-        _visualElementList.Add(playerInstance);
+        var playerInstance = Instantiate(_playerPrefab, transform);
+        var playerRectTransform = playerInstance.GetComponent<RectTransform>();
+        playerRectTransform.sizeDelta = new Vector2(cellSize, cellSize);
+        playerRectTransform.anchoredPosition = new Vector2(playerPos.x * cellSize, playerPos.y * cellSize);
+        _visualElementList.Add(playerInstance.gameObject);
     }
 
     private void ClearAll()
@@ -57,17 +72,6 @@ public class StageDrawer : MonoBehaviour
             Destroy(element);
         }
         _visualElementList.Clear();
-    }
-
-    private GameObject GetPrefabByType(EMapObjectType type)
-    {
-        switch (type)
-        {
-            case EMapObjectType.Player: return _playerPrefab;
-            case EMapObjectType.Wall: return _wallPrefab;
-            case EMapObjectType.Goal: return _goalPrefab;
-            default: return null;
-        }
     }
 
     private Vector2Int GetNextPosition(MapData data, Dictionary<Vector2Int, MapObject> objectMap, Vector2Int startPos, Vector2Int direction)

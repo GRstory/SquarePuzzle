@@ -78,6 +78,13 @@ public class MapDataVisualizer : MonoBehaviour
         _currentMapData = JsonUtility.FromJson<MapData>(_levelJsonList[_currentStageIndex].text);
         _currentMoveIndex = -1;
 
+        var mainDrawerRect = _mainDrawer.GetComponent<RectTransform>();
+        mainDrawerRect.anchorMin = Vector2.zero;
+        mainDrawerRect.anchorMax = Vector2.one;
+
+        mainDrawerRect.anchoredPosition = Vector2.zero;
+        mainDrawerRect.sizeDelta = Vector2.one;
+
         _mainDrawer.DrawMap(_currentMapData, _currentMoveIndex);
 
         foreach(var drawer in _gridDrawerList)
@@ -90,8 +97,14 @@ public class MapDataVisualizer : MonoBehaviour
         {
             var drawer = Instantiate(_stageDrawerPrefab, _gridParent);
             _gridDrawerList.Add(drawer);
+            LayoutRebuilder.ForceRebuildLayoutImmediate(_gridParent.GetComponent<RectTransform>());
         }
 
+        for (int i = 0; i < _currentMapData.OptimalPath.Count; i++)
+        {
+            _gridDrawerList[i].DrawMap(_currentMapData, i - 1);
+        }
+        
         UpdateUI();
     }
 
