@@ -53,6 +53,13 @@ MonoBehaviour:
   _wallPrefab: {fileID: 3063074053771545297, guid: 1f0baab5473d36748ac997608a252d8f, type: 3}
   _goalPrefab: {fileID: 7962979480890813399, guid: 9b2408173d2f1cc42ade68b4ee71cb33, type: 3}
   _playerPrefab: {fileID: 4271460954307981876, guid: fde869367bc59444286b52d6736efb6a, type: 3}
+  _breakableWallPrefab: {fileID: 5990379925369579031, guid: 8cc349508de9c75498c3ffddefc1ba5b, type: 3}
+  _slideWallUpPrefab: {fileID: 5073569204098892202, guid: ceae855c589075643a79738e818e22f0, type: 3}
+  _slideWallRightPrefab: {fileID: 8553006371863820189, guid: 773e9a85b4d43bd479c2ede85eacb355, type: 3}
+  _slideWallDownPrefab: {fileID: 5004858540759110679, guid: 7207f25e0d310c145af4bfd285d9b81e, type: 3}
+  _slideWallLeftPrefab: {fileID: 421492686896802987, guid: a9d6dc07dcaf14043a142ab817032164, type: 3}
+  _pathLineColor: {r: 0.2, g: 0.8, b: 1, a: 0.5}
+  _pathLineWidth: 3
 --- !u!222 &-7671220684333698817
 CanvasRenderer:
   m_ObjectHideFlags: 0

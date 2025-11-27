@@ -10,9 +10,9 @@ GameObject:
   m_Component:
   - component: {fileID: 3502167715089449103}
   - component: {fileID: 6518259691743036936}
-  - component: {fileID: -852051965492022230}
+  - component: {fileID: 6080674572892849768}
   m_Layer: 6
-  m_Name: Wall
+  m_Name: BreakableWall
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -74,7 +74,7 @@ SpriteRenderer:
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
-  m_Sprite: {fileID: -1545156369, guid: 61b58dcb6a43cd649bcf555ad8f0f766, type: 3}
+  m_Sprite: {fileID: 644037587, guid: 61b58dcb6a43cd649bcf555ad8f0f766, type: 3}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_FlipX: 0
   m_FlipY: 0
@@ -85,7 +85,7 @@ SpriteRenderer:
   m_WasSpriteAssigned: 1
   m_MaskInteraction: 0
   m_SpriteSortPoint: 0
---- !u!114 &-852051965492022230
+--- !u!114 &6080674572892849768
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -94,6 +94,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 7930762861520654238}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 1de590350ffad8044bb6d823e4214b8d, type: 3}
+  m_Script: {fileID: 11500000, guid: 13060836aef2ddd49a21edb3e673ea2c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  wallId: -1

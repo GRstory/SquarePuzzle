@@ -7,6 +7,8 @@ public class MapSolver : MonoBehaviour
     private int[,] _mapDataArray;
     private Vector2Int _startNode;
     private Vector2Int _endNode;
+    private int _mapWidth;
+    private int _mapHeight;
 
     private readonly int[] _dx = { 0, 1, 0, -1 };
     private readonly int[] _dy = { 1, 0, -1, 0 };
@@ -16,6 +18,8 @@ public class MapSolver : MonoBehaviour
         _mapDataArray = map;
         _startNode = startPos;
         _endNode = endPos;
+        _mapHeight = map.GetLength(0);
+        _mapWidth = map.GetLength(1);
 
         Queue<Vector2Int> nodeQueue = new Queue<Vector2Int>();
         HashSet<(Vector2Int, int)> visitedPath = new HashSet<(Vector2Int, int)>();
@@ -38,7 +42,8 @@ public class MapSolver : MonoBehaviour
                     next.x += _dx[i];
                     next.y += _dy[i];
 
-                    if (next.x < -20 || next.y < -20 || next.x > 20 || next.y > 20) break;
+                    // Use actual map dimensions instead of hardcoded values
+                    if (next.x < 0 || next.y < 0 || next.x >= _mapWidth || next.y >= _mapHeight) break;
                     int temptileType = _mapDataArray[next.y, next.x];
                     if (temptileType == 1) break;
                     else if (temptileType == 2) return true;

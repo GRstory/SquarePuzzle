@@ -1,6 +1,6 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
---- !u!1001 &1280568775174699237
+--- !u!1001 &9093774010650240547
 PrefabInstance:
   m_ObjectHideFlags: 0
   serializedVersion: 2
@@ -11,19 +11,7 @@ PrefabInstance:
     - target: {fileID: 4271460954307981876, guid: fde869367bc59444286b52d6736efb6a, type: 3}
       propertyPath: m_Sprite
       value: 
-      objectReference: {fileID: -1545156369, guid: 61b58dcb6a43cd649bcf555ad8f0f766, type: 3}
-    - target: {fileID: 4271460954307981876, guid: fde869367bc59444286b52d6736efb6a, type: 3}
-      propertyPath: m_Color.b
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 4271460954307981876, guid: fde869367bc59444286b52d6736efb6a, type: 3}
-      propertyPath: m_Color.g
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 4271460954307981876, guid: fde869367bc59444286b52d6736efb6a, type: 3}
-      propertyPath: m_Color.r
-      value: 1
-      objectReference: {fileID: 0}
+      objectReference: {fileID: 1775260051, guid: 61b58dcb6a43cd649bcf555ad8f0f766, type: 3}
     - target: {fileID: 7613899484696301862, guid: fde869367bc59444286b52d6736efb6a, type: 3}
       propertyPath: m_Pivot.x
       value: 0
@@ -106,7 +94,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 8847285589944349326, guid: fde869367bc59444286b52d6736efb6a, type: 3}
       propertyPath: m_Name
-      value: Wall
+      value: SlideWall_Down
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []

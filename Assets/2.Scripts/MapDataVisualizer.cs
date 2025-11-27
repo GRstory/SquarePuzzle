@@ -15,9 +15,11 @@ public class MapDataVisualizer : MonoBehaviour
     [SerializeField] private Button _nextStageButton;
     [SerializeField] private Button _prevMoveButton;
     [SerializeField] private Button _nextMoveButton;
+    [SerializeField] private Button _worldListButton;
 
     [SerializeField] private Transform _mainViewParent;
     [SerializeField] private Transform _gridParent;
+    [SerializeField] private WorldListPanel _worldListPanel;
 
     private int _currentStageIndex = 0;
     private int _currentMoveIndex = -1;
@@ -31,8 +33,21 @@ public class MapDataVisualizer : MonoBehaviour
         _nextStageButton.onClick.AddListener(LoadNextStage);
         _prevMoveButton.onClick.AddListener(StepPrevMove);
         _nextMoveButton.onClick.AddListener(StepNextMove);
+        
+        if (_worldListButton != null)
+        {
+            _worldListButton.onClick.AddListener(ToggleWorldList);
+        }
 
         _mainDrawer = Instantiate(_stageDrawerPrefab, _mainViewParent);
+        
+        // Initialize world list panel
+        if (_worldListPanel != null)
+        {
+            _worldListPanel.Initialize(_levelJsonList);
+            _worldListPanel.Hide();
+        }
+        
         LoadStage(_currentStageIndex);
     }
 
@@ -42,6 +57,11 @@ public class MapDataVisualizer : MonoBehaviour
         _nextStageButton.onClick.RemoveAllListeners();
         _prevMoveButton.onClick.RemoveAllListeners();
         _nextMoveButton.onClick.RemoveAllListeners();
+        
+        if (_worldListButton != null)
+        {
+            _worldListButton.onClick.RemoveAllListeners();
+        }
     }
 
     #region UI Function
@@ -58,14 +78,14 @@ public class MapDataVisualizer : MonoBehaviour
     private void StepPrevMove()
     {
         _currentMoveIndex = Mathf.Max(_currentMoveIndex - 1, -1);
-        _mainDrawer.DrawMap(_currentMapData, _currentMoveIndex);
+        _mainDrawer.DrawMap(_currentMapData, _currentMoveIndex, true); // Show path line in main drawer
         UpdateUI();
     }
 
     private void StepNextMove()
     {
         _currentMoveIndex = Mathf.Min(_currentMoveIndex + 1, _currentMapData.OptimalPath.Count - 1);
-        _mainDrawer.DrawMap(_currentMapData, _currentMoveIndex);
+        _mainDrawer.DrawMap(_currentMapData, _currentMoveIndex, true); // Show path line in main drawer
         UpdateUI();
     }
     #endregion
@@ -85,7 +105,7 @@ public class MapDataVisualizer : MonoBehaviour
         mainDrawerRect.anchoredPosition = Vector2.zero;
         mainDrawerRect.sizeDelta = Vector2.one;
 
-        _mainDrawer.DrawMap(_currentMapData, _currentMoveIndex);
+        _mainDrawer.DrawMap(_currentMapData, _currentMoveIndex, true); // Show path line in main drawer
 
         foreach(var drawer in _gridDrawerList)
         {
@@ -102,7 +122,7 @@ public class MapDataVisualizer : MonoBehaviour
 
         for (int i = 0; i < _currentMapData.OptimalPath.Count; i++)
         {
-            _gridDrawerList[i].DrawMap(_currentMapData, i - 1);
+            _gridDrawerList[i].DrawMap(_currentMapData, i - 1, false, true, i); // Hide path line, show index label
         }
         
         UpdateUI();
@@ -110,7 +130,15 @@ public class MapDataVisualizer : MonoBehaviour
 
     private void UpdateUI()
     {
-        _stageNumberText.text = $"Current Stage Index: {_currentStageIndex.ToString()}";
-        _moveCountText.text = $"Current Move: {_currentMoveIndex.ToString()}";
+        _stageNumberText.text = $"World: {_currentStageIndex.ToString()}";
+        _moveCountText.text = $"Current Step: {(_currentMoveIndex + 1).ToString()}";
+    }
+    
+    private void ToggleWorldList()
+    {
+        if (_worldListPanel != null)
+        {
+            _worldListPanel.Toggle();
+        }
     }
 }

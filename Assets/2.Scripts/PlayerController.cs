@@ -7,7 +7,7 @@ public class PlayerController : MonoBehaviour
     public float moveSpeed = 10f;
     private bool isMoving = false;
     private Vector2Int currentGridPosition;
-    private readonly Vector2Int[] directions = { Vector2Int.up, Vector2Int.down, Vector2Int.left, Vector2Int.right };
+    private readonly Vector2Int[] directions = { Vector2Int.up, Vector2Int.right, Vector2Int.down, Vector2Int.left };
     private int tryCount = 0;
 
     public void SetInitialPosition(Vector2Int startPos)
@@ -20,9 +20,9 @@ public class PlayerController : MonoBehaviour
         if (isMoving) return;
 
         if (Input.GetKeyDown(KeyCode.W)) StartCoroutine(Move(0));
-        else if (Input.GetKeyDown(KeyCode.S)) StartCoroutine(Move(1));
-        else if (Input.GetKeyDown(KeyCode.A)) StartCoroutine(Move(2));
-        else if (Input.GetKeyDown(KeyCode.D)) StartCoroutine(Move(3));
+        else if (Input.GetKeyDown(KeyCode.D)) StartCoroutine(Move(1));
+        else if (Input.GetKeyDown(KeyCode.S)) StartCoroutine(Move(2));
+        else if (Input.GetKeyDown(KeyCode.A)) StartCoroutine(Move(3));
     }
 
     private IEnumerator Move(int directionIndex)
@@ -31,54 +31,118 @@ public class PlayerController : MonoBehaviour
         UI_HUD.Instance.UpdateTryCount(tryCount);
 
         isMoving = true;
-        Vector2Int moveDirection = directions[directionIndex];
-        Vector2Int targetGridPos = currentGridPosition;
-        GameObject wallObjectHit = null;
+        int currentDirection = directionIndex;
+        Vector2Int startPos = currentGridPosition;
 
-        // MapManager·ÎºÎÅÍ ÇöÀç ¸ÊÀÇ »çÀÌÁî Á¤º¸¸¦ °¡Á®¿É´Ï´Ù.
-        Vector2Int mapSize = MapManager.Instance.MapSize;
-
+        // Keep moving until we can't move anymore
         while (true)
         {
-            Vector2Int nextPos = targetGridPos + moveDirection;
+            Vector2Int moveDirection = directions[currentDirection];
+            Vector2Int targetGridPos = currentGridPosition;
+            GameObject wallObjectHit = null;
+            bool shouldContinue = false;
+            bool reachedGoal = false;
 
-            // --- ¹«ÇÑ ·çÇÁ ¹æÁö ·ÎÁ÷ ---
-            // 1. ¸Ê °æ°è¸¦ ¹ş¾î³ª´ÂÁö È®ÀÎÇÕ´Ï´Ù.
+            // MapManagerë¡œë¶€í„° í˜„ì¬ ë§µì˜ ì‚¬ì´ì¦ˆ ì •ë³´ë¥¼ ê°€ì ¸ì˜µë‹ˆë‹¤.
+            Vector2Int mapSize = MapManager.Instance.MapSize;
 
-            if (mapSize != null && (nextPos.x < 0 || nextPos.x >= mapSize.x || nextPos.y < 0 || nextPos.y >= mapSize.y))
+            // Slide in current direction until hitting something
+            while (true)
             {
-                break; // ¸Ê °æ°è¿¡ µµ´ŞÇÏ¸é ·çÇÁ¸¦ Å»ÃâÇÕ´Ï´Ù.
+                Vector2Int nextPos = targetGridPos + moveDirection;
+
+                // 1. ë§µ ê²½ê³„ë¥¼ ë²—ì–´ë‚˜ëŠ”ì§€ í™•ì¸í•©ë‹ˆë‹¤.
+                if (mapSize != null && (nextPos.x < 0 || nextPos.x >= mapSize.x || nextPos.y < 0 || nextPos.y >= mapSize.y))
+                {
+                    break; // ë§µ ê²½ê³„ì— ë„ë‹¬í•˜ë©´ ë£¨í”„ë¥¼ íƒˆì¶œí•©ë‹ˆë‹¤.
+                }
+
+                GameObject objectAtNextPos = MapManager.Instance.GetObjectAt(nextPos);
+
+                // 2. ë²½ì„ ë§Œë‚˜ëŠ”ì§€ í™•ì¸í•©ë‹ˆë‹¤.
+                if (objectAtNextPos != null)
+                {
+                    WallBase wall = objectAtNextPos.GetComponent<WallBase>();
+                    
+                    if (wall != null)
+                    {
+                        // Check wall type
+                        if (wall is BreakableWall)
+                        {
+                            BreakableWall breakableWall = wall as BreakableWall;
+                            // Break the wall and continue moving
+                            wall.ExecuteOnHit(this);
+                            MapManager.Instance.RemoveObjectAt(nextPos);
+                            MapManager.Instance.RemoveWallFromIdMap(breakableWall.GetWallId());
+                            targetGridPos = nextPos;
+                            shouldContinue = false; // Continue in same direction in this loop
+                        }
+                        else if (wall is SlideWallUp || wall is SlideWallRight || wall is SlideWallDown || wall is SlideWallLeft)
+                        {
+                            // Pass through slide wall and change direction
+                            targetGridPos = nextPos;
+                            
+                            // Get redirect direction based on wall type
+                            if (wall is SlideWallUp)
+                                currentDirection = 0; // Up
+                            else if (wall is SlideWallRight)
+                                currentDirection = 1; // Right
+                            else if (wall is SlideWallDown)
+                                currentDirection = 2; // Down
+                            else if (wall is SlideWallLeft)
+                                currentDirection = 3; // Left
+                            
+                            shouldContinue = true; // Continue in new direction
+                            break;
+                        }
+                        else if (wall is GoalWall)
+                        {
+                            // Move INTO the goal position
+                            targetGridPos = nextPos;
+                            wallObjectHit = objectAtNextPos;
+                            reachedGoal = true;
+                            break;
+                        }
+                        else
+                        {
+                            // Standard wall - stop here
+                            wallObjectHit = objectAtNextPos;
+                            break;
+                        }
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+                else
+                {
+                    targetGridPos = nextPos;
+                }
             }
 
-            GameObject objectAtNextPos = MapManager.Instance.GetObjectAt(nextPos);
-
-            // 2. º®À» ¸¸³ª´ÂÁö È®ÀÎÇÕ´Ï´Ù.
-            if (objectAtNextPos != null)
+            // Animate movement to target position
+            Vector3 targetWorldPos = new Vector3(targetGridPos.x, targetGridPos.y, 0);
+            while (Vector3.Distance(transform.position, targetWorldPos) > 0.01f)
             {
-                wallObjectHit = objectAtNextPos;
+                transform.position = Vector3.MoveTowards(transform.position, targetWorldPos, moveSpeed * Time.deltaTime);
+                yield return null;
+            }
+
+            transform.position = targetWorldPos;
+            currentGridPosition = targetGridPos;
+
+            // Execute wall interaction if we hit a standard wall or goal
+            if (wallObjectHit != null)
+            {
                 wallObjectHit.GetComponent<WallBase>()?.ExecuteOnHit(this);
-                break; // º®À» ¸¸³ª¸é ·çÇÁ¸¦ Å»ÃâÇÕ´Ï´Ù.
             }
 
-            targetGridPos = nextPos;
-        }
-
-        Vector3 targetWorldPos = new Vector3(targetGridPos.x, targetGridPos.y, 0);
-
-        // ºÎµå·¯¿î ÀÌµ¿ ¾Ö´Ï¸ŞÀÌ¼Ç
-        while (Vector3.Distance(transform.position, targetWorldPos) > 0.01f)
-        {
-            transform.position = Vector3.MoveTowards(transform.position, targetWorldPos, moveSpeed * Time.deltaTime);
-            yield return null;
-        }
-
-        transform.position = targetWorldPos;
-        currentGridPosition = targetGridPos;
-
-        // º® »óÈ£ÀÛ¿ë ½ÇÇà
-        if (wallObjectHit != null)
-        {
-            wallObjectHit.GetComponent<WallBase>()?.ExecuteOnHit(this);
+            // If we reached the goal or should not continue, stop
+            if (reachedGoal || !shouldContinue)
+            {
+                break;
+            }
         }
 
         isMoving = false;
