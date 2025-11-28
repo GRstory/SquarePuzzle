@@ -16,16 +16,36 @@ public class MapDataVisualizer : MonoBehaviour
     [SerializeField] private Button _prevMoveButton;
     [SerializeField] private Button _nextMoveButton;
     [SerializeField] private Button _worldListButton;
+    [SerializeField] private Button _playButton;
+    [SerializeField] private TMP_Text _playButtonText;
 
     [SerializeField] private Transform _mainViewParent;
     [SerializeField] private Transform _gridParent;
     [SerializeField] private WorldListPanel _worldListPanel;
+    
+    // Play mode prefabs
+    [SerializeField] private GameObject _playerPrefab;
+    [SerializeField] private GameObject _wallPrefab;
+    [SerializeField] private GameObject _goalPrefab;
+    [SerializeField] private GameObject _breakableWallPrefab;
+    [SerializeField] private GameObject _slideWallUpPrefab;
+    [SerializeField] private GameObject _slideWallRightPrefab;
+    [SerializeField] private GameObject _slideWallDownPrefab;
+    [SerializeField] private GameObject _slideWallLeftPrefab;
 
     private int _currentStageIndex = 0;
     private int _currentMoveIndex = -1;
     private MapData _currentMapData = null;
     private StageDrawer _mainDrawer;
     private readonly List<StageDrawer> _gridDrawerList = new List<StageDrawer>();
+    
+    // Play mode state
+    private bool _isPlayMode = false;
+    private GameObject _playModeParent;
+    private PlayerController _playModePlayer;
+    private readonly List<GameObject> _playModeObjects = new List<GameObject>();
+    private GameObject[,] _playModeGrid;
+    private Dictionary<int, GameObject> _playModeWallIdMap = new Dictionary<int, GameObject>();
 
     private void Start()
     {
@@ -38,13 +58,17 @@ public class MapDataVisualizer : MonoBehaviour
         {
             _worldListButton.onClick.AddListener(ToggleWorldList);
         }
+        
+        if (_playButton != null)
+        {
+            _playButton.onClick.AddListener(OnPlayStopButtonClicked);
+        }
 
         _mainDrawer = Instantiate(_stageDrawerPrefab, _mainViewParent);
         
-        // Initialize world list panel
         if (_worldListPanel != null)
         {
-            _worldListPanel.Initialize(_levelJsonList);
+            _worldListPanel.Initialize(_levelJsonList, LoadStage);
             _worldListPanel.Hide();
         }
         
@@ -62,9 +86,14 @@ public class MapDataVisualizer : MonoBehaviour
         {
             _worldListButton.onClick.RemoveAllListeners();
         }
+        
+        if (_playButton != null)
+        {
+            _playButton.onClick.RemoveAllListeners();
+        }
     }
 
-    #region UI Function
+    #region UI Functions
     private void LoadPrevStage()
     {
         LoadStage(_currentStageIndex - 1);
@@ -78,18 +107,240 @@ public class MapDataVisualizer : MonoBehaviour
     private void StepPrevMove()
     {
         _currentMoveIndex = Mathf.Max(_currentMoveIndex - 1, -1);
-        _mainDrawer.DrawMap(_currentMapData, _currentMoveIndex, true); // Show path line in main drawer
+        _mainDrawer.DrawMap(_currentMapData, _currentMoveIndex, true);
         UpdateUI();
     }
 
     private void StepNextMove()
     {
         _currentMoveIndex = Mathf.Min(_currentMoveIndex + 1, _currentMapData.OptimalPath.Count - 1);
-        _mainDrawer.DrawMap(_currentMapData, _currentMoveIndex, true); // Show path line in main drawer
+        _mainDrawer.DrawMap(_currentMapData, _currentMoveIndex, true);
         UpdateUI();
     }
+    
+    private void ToggleWorldList()
+    {
+        if (_worldListPanel != null)
+        {
+            _worldListPanel.Toggle();
+        }
+    }
+    
+    private void OnPlayStopButtonClicked()
+    {
+        if (_isPlayMode)
+        {
+            StopPlayMode();
+        }
+        else
+        {
+            StartPlayMode();
+        }
+    }
+    
+    private void StartPlayMode()
+    {
+        if (_isPlayMode || _currentMapData == null) return;
+        
+        _isPlayMode = true;
+        
+        // Hide visualization
+        _mainDrawer.gameObject.SetActive(false);
+        _prevMoveButton.gameObject.SetActive(false);
+        _nextMoveButton.gameObject.SetActive(false);
+        _moveCountText.gameObject.SetActive(false);
+        
+        // Update button
+        if (_playButtonText != null)
+        {
+            _playButtonText.text = "Stop Playmode";
+            _playButtonText.color = new Color32(0xBD, 0x49, 0x32, 0xFF);
+        }
+        
+        // Create play mode parent
+        _playModeParent = new GameObject("PlayModeObjects");
+        RectTransform parentRect = _playModeParent.AddComponent<RectTransform>();
+        parentRect.SetParent(_mainViewParent, false);
+        
+        // Match MainDrawer's RectTransform
+        RectTransform mainDrawerRect = _mainDrawer.GetComponent<RectTransform>();
+        parentRect.anchorMin = mainDrawerRect.anchorMin;
+        parentRect.anchorMax = mainDrawerRect.anchorMax;
+        parentRect.anchoredPosition = mainDrawerRect.anchoredPosition;
+        parentRect.sizeDelta = mainDrawerRect.sizeDelta;
+        parentRect.localScale = Vector3.one;
+        
+        // Calculate cell size
+        float width = parentRect.rect.width;
+        float height = parentRect.rect.height;
+        float cellSize = Mathf.Min(width / _currentMapData.MapSize.x, height / _currentMapData.MapSize.y);
+        
+        _playModeParent.AddComponent<PlayModeCellSizeHolder>().cellSize = cellSize;
+        
+        // Initialize grid
+        _playModeGrid = new GameObject[_currentMapData.MapSize.x, _currentMapData.MapSize.y];
+        _playModeWallIdMap.Clear();
+        
+        // Create MapManager if needed
+        if (MapManager.Instance == null)
+        {
+            GameObject mapManagerObj = new GameObject("TempMapManager");
+            MapManager tempManager = mapManagerObj.AddComponent<MapManager>();
+            _playModeObjects.Add(mapManagerObj);
+        }
+        
+        MapManager.Instance.ParseJsonData(_levelJsonList[_currentStageIndex]);
+        
+        // Instantiate objects
+        Vector2Int playerStartPos = Vector2Int.zero;
+        int breakableWallIdCounter = 0;
+        
+        foreach (var obj in _currentMapData.MapObjects)
+        {
+            GameObject prefab = GetPrefabForType(obj.Type);
+            if (prefab == null) continue;
+            
+            GameObject instance = Instantiate(prefab, _playModeParent.transform);
+            _playModeObjects.Add(instance);
+            
+            RectTransform rectTransform = instance.GetComponent<RectTransform>();
+            if (rectTransform == null)
+            {
+                rectTransform = instance.AddComponent<RectTransform>();
+            }
+            
+            rectTransform.sizeDelta = new Vector2(cellSize, cellSize);
+            rectTransform.anchoredPosition = new Vector2(obj.X * cellSize, obj.Y * cellSize);
+            
+            if (obj.Type == EMapObjectType.Player)
+            {
+                playerStartPos = new Vector2Int(obj.X, obj.Y);
+                _playModePlayer = instance.GetComponent<PlayerController>();
+                if (_playModePlayer != null)
+                {
+                    _playModePlayer.SetInitialPosition(playerStartPos);
+                    _playModePlayer.SetControlEnabled(true);
+                }
+            }
+            else if (obj.Type == EMapObjectType.BreakableWall)
+            {
+                BreakableWall breakableWall = instance.GetComponent<BreakableWall>();
+                if (breakableWall != null)
+                {
+                    breakableWall.SetWallId(breakableWallIdCounter);
+                    _playModeWallIdMap[breakableWallIdCounter] = instance;
+                    breakableWallIdCounter++;
+                }
+                _playModeGrid[obj.X, obj.Y] = instance;
+            }
+            
+            if (obj.Type == EMapObjectType.Wall || obj.Type == EMapObjectType.Goal ||
+                obj.Type == EMapObjectType.SlideWallUp || obj.Type == EMapObjectType.SlideWallRight ||
+                obj.Type == EMapObjectType.SlideWallDown || obj.Type == EMapObjectType.SlideWallLeft)
+            {
+                _playModeGrid[obj.X, obj.Y] = instance;
+            }
+        }
+        
+        // Ensure player is rendered on top (last sibling)
+        if (_playModePlayer != null)
+        {
+            _playModePlayer.transform.SetAsLastSibling();
+        }
+        
+        // Register with MapManager
+        if (MapManager.Instance != null)
+        {
+            for (int x = 0; x < _currentMapData.MapSize.x; x++)
+            {
+                for (int y = 0; y < _currentMapData.MapSize.y; y++)
+                {
+                    Vector2Int pos = new Vector2Int(x, y);
+                    if (_playModeGrid[x, y] != null)
+                    {
+                        MapManager.Instance.SetObjectAt(pos, _playModeGrid[x, y]);
+                    }
+                }
+            }
+            
+            foreach (var kvp in _playModeWallIdMap)
+            {
+                MapManager.Instance.AddWallToIdMap(kvp.Key, kvp.Value);
+            }
+        }
+    }
+    
+    private void StopPlayMode()
+    {
+        if (!_isPlayMode) return;
+        
+        _isPlayMode = false;
+        
+        if (_playModePlayer != null)
+        {
+            _playModePlayer.SetControlEnabled(false);
+        }
+        
+        foreach (var obj in _playModeObjects)
+        {
+            if (obj != null) Destroy(obj);
+        }
+        _playModeObjects.Clear();
+        
+        if (_playModeParent != null)
+        {
+            Destroy(_playModeParent);
+            _playModeParent = null;
+        }
+        
+        _playModePlayer = null;
+        _playModeGrid = null;
+        _playModeWallIdMap.Clear();
+        
+        if (MapManager.Instance != null)
+        {
+            MapManager.Instance.ClearGrid();
+        }
+        
+        // Show visualization
+        _mainDrawer.gameObject.SetActive(true);
+        _prevMoveButton.gameObject.SetActive(true);
+        _nextMoveButton.gameObject.SetActive(true);
+        _moveCountText.gameObject.SetActive(true);
+        
+        if (_playButtonText != null)
+        {
+            _playButtonText.text = "Play Manual";
+            _playButtonText.color = Color.black;
+        }
+        
+        LoadStage(_currentStageIndex);
+    }
+    
+    private GameObject GetPrefabForType(EMapObjectType type)
+    {
+        switch (type)
+        {
+            case EMapObjectType.Player: return _playerPrefab;
+case EMapObjectType.Wall: return _wallPrefab;
+            case EMapObjectType.Goal: return _goalPrefab;
+            case EMapObjectType.BreakableWall: return _breakableWallPrefab;
+            case EMapObjectType.SlideWallUp: return _slideWallUpPrefab;
+            case EMapObjectType.SlideWallRight: return _slideWallRightPrefab;
+            case EMapObjectType.SlideWallDown: return _slideWallDownPrefab;
+            case EMapObjectType.SlideWallLeft: return _slideWallLeftPrefab;
+            default: return null;
+        }
+    }
+    
+    public void ResetPlayMode()
+    {
+        if (!_isPlayMode) return;
+        
+        StopPlayMode();
+        StartPlayMode();
+    }
     #endregion
-
 
     private void LoadStage(int index)
     {
@@ -101,28 +352,30 @@ public class MapDataVisualizer : MonoBehaviour
         var mainDrawerRect = _mainDrawer.GetComponent<RectTransform>();
         mainDrawerRect.anchorMin = Vector2.zero;
         mainDrawerRect.anchorMax = Vector2.one;
-
         mainDrawerRect.anchoredPosition = Vector2.zero;
         mainDrawerRect.sizeDelta = Vector2.one;
 
-        _mainDrawer.DrawMap(_currentMapData, _currentMoveIndex, true); // Show path line in main drawer
+        _mainDrawer.DrawMap(_currentMapData, _currentMoveIndex, true);
 
         foreach(var drawer in _gridDrawerList)
         {
-            Destroy(drawer);
+            if (drawer != null)
+            {
+                Destroy(drawer.gameObject);
+            }
         }
         _gridDrawerList.Clear();
 
-        for(int i = 0; i < _currentMapData.OptimalPath.Count; i++)
+        for(int i = 0; i <= _currentMapData.OptimalPath.Count; i++)
         {
             var drawer = Instantiate(_stageDrawerPrefab, _gridParent);
             _gridDrawerList.Add(drawer);
             LayoutRebuilder.ForceRebuildLayoutImmediate(_gridParent.GetComponent<RectTransform>());
         }
 
-        for (int i = 0; i < _currentMapData.OptimalPath.Count; i++)
+        for (int i = 0; i <= _currentMapData.OptimalPath.Count; i++)
         {
-            _gridDrawerList[i].DrawMap(_currentMapData, i - 1, false, true, i); // Hide path line, show index label
+            _gridDrawerList[i].DrawMap(_currentMapData, i - 1, false, true, i);
         }
         
         UpdateUI();
@@ -132,13 +385,5 @@ public class MapDataVisualizer : MonoBehaviour
     {
         _stageNumberText.text = $"World: {_currentStageIndex.ToString()}";
         _moveCountText.text = $"Current Step: {(_currentMoveIndex + 1).ToString()}";
-    }
-    
-    private void ToggleWorldList()
-    {
-        if (_worldListPanel != null)
-        {
-            _worldListPanel.Toggle();
-        }
     }
 }

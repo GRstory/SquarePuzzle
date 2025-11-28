@@ -63,7 +63,8 @@ public class StageDrawer : MonoBehaviour
         List<Vector2> pathPoints = new List<Vector2>();
         Vector2Int currentPos = playerPos;
         Vector2Int startPos = playerPos;
-        HashSet<int> pathBrokenWalls = new HashSet<int>();
+        HashSet<Vector2Int> pathBrokenWalls = new HashSet<Vector2Int>();
+        Vector2Int? wallInFront = null;
         
         // Add starting position (center of cell)
         pathPoints.Add(new Vector2(startPos.x * cellSize + cellSize / 2f, startPos.y * cellSize + cellSize / 2f));
@@ -73,7 +74,15 @@ public class StageDrawer : MonoBehaviour
         for (int i = 0; i < mapData.OptimalPath.Count; i++)
         {
             int dirIndex = mapData.OptimalPath[i];
-            Vector2Int nextPos = SimulateMove(mapData, objectMap, currentPos, dirIndex, pathBrokenWalls, directions);
+            Vector2Int prevPos = currentPos;
+            Vector2Int? previousWallInFront = wallInFront; // Store wall from PREVIOUS move
+            Vector2Int nextPos = SimulateMove(mapData, objectMap, currentPos, dirIndex, pathBrokenWalls, directions, ref wallInFront);
+            
+            // Only break wall if it was marked in PREVIOUS move and we moved this turn
+            if (previousWallInFront.HasValue && nextPos != prevPos)
+            {
+                pathBrokenWalls.Add(previousWallInFront.Value);
+            }
             
             // Add center of cell position
             pathPoints.Add(new Vector2(nextPos.x * cellSize + cellSize / 2f, nextPos.y * cellSize + cellSize / 2f));
@@ -91,20 +100,30 @@ public class StageDrawer : MonoBehaviour
 
         // Simulate player movement through optimal path up to moveIndex
         currentPos = playerPos;
-        brokenWallIds.Clear();
+        HashSet<Vector2Int> brokenWallPositions = new HashSet<Vector2Int>();
+        wallInFront = null;
         for (int i = 0; i <= moveIndex; i++)
         {
             if (i >= mapData.OptimalPath.Count) break;
 
             int dirIndex = mapData.OptimalPath[i];
-            Vector2Int nextPos = SimulateMove(mapData, objectMap, currentPos, dirIndex, brokenWallIds, directions);
+            Vector2Int prevPos = currentPos;
+            Vector2Int? previousWallInFront = wallInFront; // Store wall from PREVIOUS move
+            Vector2Int nextPos = SimulateMove(mapData, objectMap, currentPos, dirIndex, brokenWallPositions, directions, ref wallInFront);
+            
+            // Only break wall if it was marked in PREVIOUS move and we moved this turn
+            if (previousWallInFront.HasValue && nextPos != prevPos)
+            {
+                brokenWallPositions.Add(previousWallInFront.Value);
+            }
+            
             currentPos = nextPos;
         }
 
         // Remove broken walls from visualization
-        foreach (var brokenWallId in brokenWallIds)
+        foreach (var brokenWallPos in brokenWallPositions)
         {
-            // Find and remove the visual element by ID
+            // Find and remove the visual element at this position
             for (int i = _visualElementList.Count - 1; i >= 0; i--)
             {
                 var elem = _visualElementList[i];
@@ -112,18 +131,12 @@ public class StageDrawer : MonoBehaviour
                 {
                     // Check if this element matches the broken wall position
                     var rectTransform = elem.GetComponent<RectTransform>();
-                    foreach (var objInfo in mapData.MapObjects)
+                    Vector2 expectedPos = new Vector2(brokenWallPos.x * cellSize, brokenWallPos.y * cellSize);
+                    if (Vector2.Distance(rectTransform.anchoredPosition, expectedPos) < 0.1f)
                     {
-                        if (objInfo.Id == brokenWallId && objInfo.Type == EMapObjectType.BreakableWall)
-                        {
-                            Vector2 expectedPos = new Vector2(objInfo.X * cellSize, objInfo.Y * cellSize);
-                            if (Vector2.Distance(rectTransform.anchoredPosition, expectedPos) < 0.1f)
-                            {
-                                Destroy(elem);
-                                _visualElementList.RemoveAt(i);
-                                break;
-                            }
-                        }
+                        Destroy(elem);
+                        _visualElementList.RemoveAt(i);
+                        break;
                     }
                 }
             }
@@ -134,6 +147,14 @@ public class StageDrawer : MonoBehaviour
         var playerRectTransform = playerInstance.GetComponent<RectTransform>();
         playerRectTransform.sizeDelta = new Vector2(cellSize, cellSize);
         playerRectTransform.anchoredPosition = new Vector2(currentPos.x * cellSize, currentPos.y * cellSize);
+        
+        // Disable PlayerController if present (visualization only)
+        var playerController = playerInstance.GetComponent<PlayerController>();
+        if (playerController != null)
+        {
+            playerController.SetControlEnabled(false);
+        }
+        
         _visualElementList.Add(playerInstance.gameObject);
 
         // Draw index label if enabled
@@ -198,11 +219,11 @@ public class StageDrawer : MonoBehaviour
     }
 
     private Vector2Int SimulateMove(MapData data, Dictionary<Vector2Int, MapObject> objectMap, 
-        Vector2Int startPos, int initialDirection, HashSet<int> brokenWallIds, Vector2Int[] directions)
+        Vector2Int startPos, int initialDirection, HashSet<Vector2Int> brokenWallPositions, Vector2Int[] directions, ref Vector2Int? wallInFront)
     {
         Vector2Int currentPos = startPos;
         int currentDirection = initialDirection;
-
+        
         // Keep moving until we can't move anymore
         while (true)
         {
@@ -228,7 +249,7 @@ public class StageDrawer : MonoBehaviour
                     MapObject obj = objectMap[nextPos];
 
                     // Skip if this wall is already broken
-                    if (obj.Id >= 0 && brokenWallIds.Contains(obj.Id))
+                    if (brokenWallPositions.Contains(nextPos))
                     {
                         targetPos = nextPos;
                         continue;
@@ -236,13 +257,9 @@ public class StageDrawer : MonoBehaviour
 
                     if (obj.Type == EMapObjectType.BreakableWall)
                     {
-                        // Break the wall and continue
-                        if (obj.Id >= 0)
-                        {
-                            brokenWallIds.Add(obj.Id);
-                        }
-                        targetPos = nextPos;
-                        // Continue in same direction
+                        // BreakableWall: stop here, mark for breaking on next successful move
+                        wallInFront = nextPos;
+                        break;
                     }
                     else if (obj.Type == EMapObjectType.SlideWallUp)
                     {

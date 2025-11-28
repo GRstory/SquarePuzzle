@@ -108,8 +108,29 @@ PrefabInstance:
       propertyPath: m_Name
       value: Wall
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 3206788804480556767, guid: fde869367bc59444286b52d6736efb6a, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 8847285589944349326, guid: fde869367bc59444286b52d6736efb6a, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 8509415870569618906}
   m_SourcePrefab: {fileID: 100100000, guid: fde869367bc59444286b52d6736efb6a, type: 3}
+--- !u!1 &7710903471124122219 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 8847285589944349326, guid: fde869367bc59444286b52d6736efb6a, type: 3}
+  m_PrefabInstance: {fileID: 1280568775174699237}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &8509415870569618906
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7710903471124122219}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1de590350ffad8044bb6d823e4214b8d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 

@@ -5,7 +5,6 @@ using UnityEngine;
 [System.Serializable]
 public class MapData
 {
-    public int MapSeed;
     public Vector2Int MapSize = new Vector2Int(15, 15); // Standard 15x15 world size
     public List<int> OptimalPath = new List<int>();
     public List<MapObject> MapObjects;

@@ -264,6 +264,27 @@ TextureImporter:
       indices: 
       edges: []
       weights: []
+    - serializedVersion: 2
+      name: BlockImage_8
+      rect:
+        serializedVersion: 2
+        x: 0
+        y: 16
+        width: 16
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: ecb1658e8ea853046912beb60ff534c3
+      internalID: -410187616
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
     outline: []
     physicsShape: []
     bones: []
@@ -283,6 +304,7 @@ TextureImporter:
       BlockImage_5: -1113376619
       BlockImage_6: 1775260051
       BlockImage_7: -1285716806
+      BlockImage_8: -410187616
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 
