@@ -19,6 +19,9 @@ public class PlayerController : MonoBehaviour
     private bool _controlEnabled = true;
     
     [SerializeField] private Sprite _successSprite;
+    
+    // Event for move count updates
+    public System.Action<int> OnMoveCountChanged;
 
     public void SetInitialPosition(Vector2Int startPos)
     {
@@ -44,6 +47,7 @@ public class PlayerController : MonoBehaviour
     {
         tryCount++;
         UI_HUD.Instance.UpdateTryCount(tryCount);
+        OnMoveCountChanged?.Invoke(tryCount);
 
         isMoving = true;
         int currentDirection = directionIndex;

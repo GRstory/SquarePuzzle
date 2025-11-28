@@ -18,6 +18,12 @@ public class MapDataVisualizer : MonoBehaviour
     [SerializeField] private Button _worldListButton;
     [SerializeField] private Button _playButton;
     [SerializeField] private TMP_Text _playButtonText;
+    
+    [Header("Play Mode UI")]
+    [SerializeField] private TMP_Text _playModeInfoText; // "Current / Optimal"
+    [SerializeField] private List<Image> _starImages; // 3 stars
+    [SerializeField] private Sprite _starFullSprite;
+    [SerializeField] private Sprite _starEmptySprite;
 
     [SerializeField] private Transform _mainViewParent;
     [SerializeField] private Transform _gridParent;
@@ -47,6 +53,45 @@ public class MapDataVisualizer : MonoBehaviour
     private GameObject[,] _playModeGrid;
     private Dictionary<int, GameObject> _playModeWallIdMap = new Dictionary<int, GameObject>();
 
+    private void OnPlayModeMove(int currentMoves)
+    {
+        if (_currentMapData == null) return;
+        
+        int optimalMoves = _currentMapData.OptimalPath.Count;
+        
+        // Update text: "Current / Optimal"
+        if (_playModeInfoText != null)
+        {
+            _playModeInfoText.text = $"{currentMoves} / {optimalMoves}";
+        }
+        
+        // Calculate stars
+        // Base: 3 stars
+        // Penalty: Every (Optimal * 0.3) extra moves reduces 1 star
+        // Min stars: 1
+        
+        int stars = 3;
+        if (currentMoves > optimalMoves)
+        {
+            float threshold = Mathf.Max(1f, optimalMoves * 0.3f);
+            int penalty = Mathf.FloorToInt((currentMoves - optimalMoves) / threshold);
+            stars = Mathf.Max(1, 3 - penalty);
+        }
+        
+        // Update star sprites
+        if (_starImages != null)
+        {
+            for (int i = 0; i < _starImages.Count; i++)
+            {
+                if (_starImages[i] != null)
+                {
+                    _starImages[i].sprite = (i < stars) ? _starFullSprite : _starEmptySprite;
+                    _starImages[i].gameObject.SetActive(true);
+                }
+            }
+        }
+    }
+
     private void Start()
     {
         _prevStageButton.onClick.AddListener(LoadPrevStage);
@@ -62,6 +107,16 @@ public class MapDataVisualizer : MonoBehaviour
         if (_playButton != null)
         {
             _playButton.onClick.AddListener(OnPlayStopButtonClicked);
+        }
+
+        // Hide Play Mode UI initially
+        if (_playModeInfoText != null) _playModeInfoText.gameObject.SetActive(false);
+        if (_starImages != null)
+        {
+            foreach (var star in _starImages)
+            {
+                if (star != null) star.gameObject.SetActive(false);
+            }
         }
 
         _mainDrawer = Instantiate(_stageDrawerPrefab, _mainViewParent);
@@ -150,6 +205,19 @@ public class MapDataVisualizer : MonoBehaviour
         _nextMoveButton.gameObject.SetActive(false);
         _moveCountText.gameObject.SetActive(false);
         
+        // Show Play Mode UI
+        if (_playModeInfoText != null) _playModeInfoText.gameObject.SetActive(true);
+        if (_starImages != null)
+        {
+            foreach (var star in _starImages)
+            {
+                if (star != null) star.gameObject.SetActive(true);
+            }
+        }
+        
+        // Initialize UI
+        OnPlayModeMove(0);
+        
         // Update button
         if (_playButtonText != null)
         {
@@ -220,6 +288,7 @@ public class MapDataVisualizer : MonoBehaviour
                 {
                     _playModePlayer.SetInitialPosition(playerStartPos);
                     _playModePlayer.SetControlEnabled(true);
+                    _playModePlayer.OnMoveCountChanged += OnPlayModeMove;
                 }
             }
             else if (obj.Type == EMapObjectType.BreakableWall)
@@ -276,8 +345,19 @@ public class MapDataVisualizer : MonoBehaviour
         
         _isPlayMode = false;
         
+        // Hide Play Mode UI
+        if (_playModeInfoText != null) _playModeInfoText.gameObject.SetActive(false);
+        if (_starImages != null)
+        {
+            foreach (var star in _starImages)
+            {
+                if (star != null) star.gameObject.SetActive(false);
+            }
+        }
+        
         if (_playModePlayer != null)
         {
+            _playModePlayer.OnMoveCountChanged -= OnPlayModeMove;
             _playModePlayer.SetControlEnabled(false);
         }
         
