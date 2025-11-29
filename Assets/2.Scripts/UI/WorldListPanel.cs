@@ -17,6 +17,7 @@ public class WorldListPanel : MonoBehaviour
     private int _selectedMoveCount = -1; // -1 means "All"
     private SortMode _currentSortMode = SortMode.ByIndex;
     private System.Action<int> _onWorldSelectedCallback; // Callback when world is selected
+    private System.Action<bool> _onVisibilityChanged; // Callback when panel visibility changes (true = shown, false = hidden)
 
     private enum SortMode
     {
@@ -24,10 +25,11 @@ public class WorldListPanel : MonoBehaviour
         ByObjectCount // 기물 개수 순
     }
 
-    public void Initialize(List<TextAsset> levelJsonList, System.Action<int> onWorldSelected = null)
+    public void Initialize(List<TextAsset> levelJsonList, System.Action<int> onWorldSelected = null, System.Action<bool> onVisibilityChanged = null)
     {
         _fullLevelList = levelJsonList;
         _onWorldSelectedCallback = onWorldSelected;
+        _onVisibilityChanged = onVisibilityChanged;
         
         // Setup filter dropdown
         if (_filterDropdown != null)
@@ -154,11 +156,13 @@ public class WorldListPanel : MonoBehaviour
     public void Show()
     {
         gameObject.SetActive(true);
+        _onVisibilityChanged?.Invoke(true);
     }
 
     public void Hide()
     {
         gameObject.SetActive(false);
+        _onVisibilityChanged?.Invoke(false);
     }
 
     private void OnWorldPreviewClicked(int worldIndex)

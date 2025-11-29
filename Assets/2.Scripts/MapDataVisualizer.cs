@@ -123,7 +123,7 @@ public class MapDataVisualizer : MonoBehaviour
         
         if (_worldListPanel != null)
         {
-            _worldListPanel.Initialize(_levelJsonList, LoadStage);
+            _worldListPanel.Initialize(_levelJsonList, LoadStage, OnWorldListVisibilityChanged);
             _worldListPanel.Hide();
         }
         
@@ -178,6 +178,15 @@ public class MapDataVisualizer : MonoBehaviour
         if (_worldListPanel != null)
         {
             _worldListPanel.Toggle();
+        }
+    }
+    
+    private void OnWorldListVisibilityChanged(bool isVisible)
+    {
+        // Hide PlayMode button when WorldList is shown, show it when hidden
+        if (_playButton != null)
+        {
+            _playButton.gameObject.SetActive(!isVisible);
         }
     }
     
