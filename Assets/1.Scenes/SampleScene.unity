@@ -3368,6 +3368,12 @@ MonoBehaviour:
   - {fileID: 4900000, guid: 1ef544a8966df9f4c8bbbf32dae14bb2, type: 3}
   - {fileID: 4900000, guid: 38aa87ab17c3cc24da142dfb75f42fe2, type: 3}
   - {fileID: 4900000, guid: f9945531fc7646d4da19d512862dd86b, type: 3}
+  - {fileID: 4900000, guid: b44d5c2e2c1ed814c8c67b9cc6a27cc8, type: 3}
+  - {fileID: 4900000, guid: 495de42b651b9ad44bf37a2fbcfea7f5, type: 3}
+  - {fileID: 4900000, guid: cd7a023c6a966a2439eea118c1b42ac2, type: 3}
+  - {fileID: 4900000, guid: ac163e4a7388c8b479f24841bc32b927, type: 3}
+  - {fileID: 4900000, guid: c8f2a3ce441b76743a66dc95631793ac, type: 3}
+  - {fileID: 4900000, guid: 13a86722ec944cb4a8425e03242e5984, type: 3}
   _stageDrawerPrefab: {fileID: 8135362639904940288, guid: e4a2f1ae33b0fe44caa8ff89f4d88bea, type: 3}
   _stageNumberText: {fileID: 1376227359}
   _moveCountText: {fileID: 1509935134}

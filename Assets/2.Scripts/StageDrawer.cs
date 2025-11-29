@@ -66,6 +66,15 @@ public class StageDrawer : MonoBehaviour
         HashSet<Vector2Int> pathBrokenWalls = new HashSet<Vector2Int>();
         Vector2Int? wallInFront = null;
         
+        // Create a mutable copy of objectMap for dynamic simulation
+        Dictionary<Vector2Int, MapObject> mutableObjectMap = new Dictionary<Vector2Int, MapObject>(objectMap);
+        
+        // Remove player from objectMap since player moves and shouldn't be treated as an obstacle
+        if (mutableObjectMap.ContainsKey(playerPos))
+        {
+            mutableObjectMap.Remove(playerPos);
+        }
+        
         // Add starting position (center of cell)
         pathPoints.Add(new Vector2(startPos.x * cellSize + cellSize / 2f, startPos.y * cellSize + cellSize / 2f));
 
@@ -76,16 +85,42 @@ public class StageDrawer : MonoBehaviour
             int dirIndex = mapData.OptimalPath[i];
             Vector2Int prevPos = currentPos;
             Vector2Int? previousWallInFront = wallInFront; // Store wall from PREVIOUS move
-            Vector2Int nextPos = SimulateMove(mapData, objectMap, currentPos, dirIndex, pathBrokenWalls, directions, ref wallInFront);
+            List<Vector2Int> intermediatePositions = new List<Vector2Int>();
+            Vector2Int nextPos = SimulateMoveWithPath(mapData, mutableObjectMap, currentPos, dirIndex, pathBrokenWalls, directions, ref wallInFront, intermediatePositions);
             
             // Only break wall if it was marked in PREVIOUS move and we moved this turn
             if (previousWallInFront.HasValue && nextPos != prevPos)
             {
                 pathBrokenWalls.Add(previousWallInFront.Value);
+                // Remove broken wall from mutableObjectMap so it doesn't affect future moves
+                if (mutableObjectMap.ContainsKey(previousWallInFront.Value))
+                {
+                    mutableObjectMap.Remove(previousWallInFront.Value);
+                }
             }
             
-            // Add center of cell position
-            pathPoints.Add(new Vector2(nextPos.x * cellSize + cellSize / 2f, nextPos.y * cellSize + cellSize / 2f));
+            // Add intermediate positions (for L-shaped SlideWall movement)
+            foreach (var intermediatePos in intermediatePositions)
+            {
+                pathPoints.Add(new Vector2(intermediatePos.x * cellSize + cellSize / 2f, intermediatePos.y * cellSize + cellSize / 2f));
+            }
+            
+            // Add final position only if it's different from the last intermediate position
+            bool shouldAddFinalPos = true;
+            if (intermediatePositions.Count > 0)
+            {
+                Vector2Int lastIntermediate = intermediatePositions[intermediatePositions.Count - 1];
+                if (lastIntermediate == nextPos)
+                {
+                    shouldAddFinalPos = false;
+                }
+            }
+            
+            if (shouldAddFinalPos)
+            {
+                pathPoints.Add(new Vector2(nextPos.x * cellSize + cellSize / 2f, nextPos.y * cellSize + cellSize / 2f));
+            }
+            
             currentPos = nextPos;
         }
 
@@ -221,6 +256,14 @@ public class StageDrawer : MonoBehaviour
     private Vector2Int SimulateMove(MapData data, Dictionary<Vector2Int, MapObject> objectMap, 
         Vector2Int startPos, int initialDirection, HashSet<Vector2Int> brokenWallPositions, Vector2Int[] directions, ref Vector2Int? wallInFront)
     {
+        List<Vector2Int> dummy = new List<Vector2Int>();
+        return SimulateMoveWithPath(data, objectMap, startPos, initialDirection, brokenWallPositions, directions, ref wallInFront, dummy);
+    }
+
+    private Vector2Int SimulateMoveWithPath(MapData data, Dictionary<Vector2Int, MapObject> objectMap, 
+        Vector2Int startPos, int initialDirection, HashSet<Vector2Int> brokenWallPositions, Vector2Int[] directions, 
+        ref Vector2Int? wallInFront, List<Vector2Int> intermediatePositions)
+    {
         Vector2Int currentPos = startPos;
         int currentDirection = initialDirection;
         
@@ -261,36 +304,57 @@ public class StageDrawer : MonoBehaviour
                         wallInFront = nextPos;
                         break;
                     }
-                    else if (obj.Type == EMapObjectType.SlideWallUp)
+                    else if (obj.Type == EMapObjectType.SlideWallUp || obj.Type == EMapObjectType.SlideWallRight ||
+                             obj.Type == EMapObjectType.SlideWallDown || obj.Type == EMapObjectType.SlideWallLeft)
                     {
-                        // Pass through and redirect upward
+                        // Add SlideWall position as intermediate point for L-shaped path
+                        intermediatePositions.Add(nextPos);
+                        
+                        // Move to slide wall position
                         targetPos = nextPos;
-                        currentDirection = 0; // Up
-                        shouldContinue = true;
-                        break;
-                    }
-                    else if (obj.Type == EMapObjectType.SlideWallRight)
-                    {
-                        // Pass through and redirect right
-                        targetPos = nextPos;
-                        currentDirection = 1; // Right
-                        shouldContinue = true;
-                        break;
-                    }
-                    else if (obj.Type == EMapObjectType.SlideWallDown)
-                    {
-                        // Pass through and redirect downward
-                        targetPos = nextPos;
-                        currentDirection = 2; // Down
-                        shouldContinue = true;
-                        break;
-                    }
-                    else if (obj.Type == EMapObjectType.SlideWallLeft)
-                    {
-                        // Pass through and redirect left
-                        targetPos = nextPos;
-                        currentDirection = 3; // Left
-                        shouldContinue = true;
+                        
+                        // Determine exit direction
+                        int exitDirection = 0;
+                        if (obj.Type == EMapObjectType.SlideWallUp)
+                            exitDirection = 0; // Up
+                        else if (obj.Type == EMapObjectType.SlideWallRight)
+                            exitDirection = 1; // Right
+                        else if (obj.Type == EMapObjectType.SlideWallDown)
+                            exitDirection = 2; // Down
+                        else if (obj.Type == EMapObjectType.SlideWallLeft)
+                            exitDirection = 3; // Left
+                        
+                        // Calculate exit position (one step in new direction)
+                        Vector2Int exitDir = directions[exitDirection];
+                        Vector2Int exitPos = nextPos + exitDir;
+                        
+                        // Check if exit position is valid
+                        bool canExit = true;
+                        
+                        // Check bounds
+                        if (exitPos.x < 0 || exitPos.x >= data.MapSize.x || exitPos.y < 0 || exitPos.y >= data.MapSize.y)
+                        {
+                            canExit = false;
+                        }
+                        
+                        // Check for walls at exit position
+                        if (canExit && objectMap.ContainsKey(exitPos))
+                        {
+                            MapObject exitObj = objectMap[exitPos];
+                            if (!brokenWallPositions.Contains(exitPos) && 
+                                exitObj.Type != EMapObjectType.Goal)
+                            {
+                                canExit = false;
+                            }
+                        }
+                        
+                        // If can exit, move to exit position
+                        if (canExit)
+                        {
+                            targetPos = exitPos;
+                        }
+                        
+                        shouldContinue = false; // Stop after exiting
                         break;
                     }
                     else if (obj.Type == EMapObjectType.Goal)

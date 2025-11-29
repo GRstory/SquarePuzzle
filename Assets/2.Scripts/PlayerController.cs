@@ -45,33 +45,11 @@ public class PlayerController : MonoBehaviour
 
     private IEnumerator Move(int directionIndex)
     {
-        tryCount++;
-        UI_HUD.Instance.UpdateTryCount(tryCount);
-        OnMoveCountChanged?.Invoke(tryCount);
-
         isMoving = true;
         int currentDirection = directionIndex;
         Vector2Int startPos = currentGridPosition;
-        
-        // Check if we should break a wall from previous move
-        if (_canBreakWall && _wallInFrontPosition.HasValue)
-        {
-            Vector2Int wallPos = _wallInFrontPosition.Value;
-            Debug.Log($"Processing BreakableWall at {wallPos}");
-            
-            GameObject wallObj = MapManager.Instance.GetObjectAt(wallPos);
-            if (wallObj != null)
-            {
-                BreakableWall breakableWall = wallObj.GetComponent<BreakableWall>();
-                if (breakableWall != null)
-                {
-                    Debug.Log($"Breaking wall at {wallPos}");
-                    breakableWall.ExecuteOnHit(this);
-                    MapManager.Instance.RemoveObjectAt(wallPos);
-                    MapManager.Instance.RemoveWallFromIdMap(breakableWall.GetWallId());
-                }
-            }
-        }
+        Vector2Int? previousWallInFront = _wallInFrontPosition; // Store wall from PREVIOUS move attempt
+        bool canBreakWallThisMove = _canBreakWall; // Store flag from previous move
         
         // Reset wall breaking flags at start of new move
         _canBreakWall = false;
@@ -134,23 +112,10 @@ public class PlayerController : MonoBehaviour
                         }
                         else if (wall is SlideWallUp || wall is SlideWallRight || wall is SlideWallDown || wall is SlideWallLeft)
                         {
-                            // Pass through slide wall and change direction
+                            // First, move to the slide wall position
                             targetGridPos = nextPos;
-                            
-                            // Execute gimmick (sound/anim)
-                            wall.ExecuteOnHit(this);
-                            
-                            // Get redirect direction based on wall type
-                            if (wall is SlideWallUp)
-                                currentDirection = 0; // Up
-                            else if (wall is SlideWallRight)
-                                currentDirection = 1; // Right
-                            else if (wall is SlideWallDown)
-                                currentDirection = 2; // Down
-                            else if (wall is SlideWallLeft)
-                                currentDirection = 3; // Left
-                            
-                            shouldContinue = true; // Continue in new direction
+                            wallObjectHit = objectAtNextPos; // Store wall for later processing
+                            shouldContinue = false; // Stop the current sliding loop
                             break;
                         }
                         else if (wall is GoalWall)
@@ -177,21 +142,14 @@ public class PlayerController : MonoBehaviour
                     }
                 }
                 
-                // 3. 맵 경계를 벗어나는지 확인합니다 (벽 체크 이후)
-                // This runs AFTER wall check, so edge walls work properly
-                // 3. 맵 경계를 벗어나는지 확인합니다 (벽 체크 이후)
-                // This runs AFTER wall check, so edge walls work properly
+                // Check if nextPos is out of bounds
                 if (mapSize.x > 0 && mapSize.y > 0 && 
                     (nextPos.x < 0 || nextPos.x >= mapSize.x || nextPos.y < 0 || nextPos.y >= mapSize.y))
                 {
-                    // Out of bounds - move there then die
-                    Debug.Log($"Out of bounds! Moving to {nextPos} then dying. mapSize={mapSize}");
-                    targetGridPos = nextPos; // Move to the out-of-bounds position
-                    shouldContinue = false; // Stop sliding loop
-                    
-                    // Mark for death after movement
-                    StartCoroutine(HandleDeathAfterMove());
-                    break; // Break inner loop to start movement animation
+                    // Allow moving to the out of bounds position (for reset detection)
+                    // but stop sliding there to prevent infinite loop
+                    targetGridPos = nextPos;
+                    break;
                 }
                 
                 // 4. No obstacle - continue moving
@@ -237,13 +195,119 @@ public class PlayerController : MonoBehaviour
             }
             
             currentGridPosition = targetGridPos;
-
+            
+            // Check if player is now out of bounds after movement
+            if (mapSize.x > 0 && mapSize.y > 0 && 
+                (currentGridPosition.x < 0 || currentGridPosition.x >= mapSize.x || 
+                 currentGridPosition.y < 0 || currentGridPosition.y >= mapSize.y))
+            {
+                // Player is out of bounds - immediately reset
+                Debug.Log($"Player out of bounds! Immediately resetting. currentPos={currentGridPosition}, mapSize={mapSize}");
+                
+                // Immediately reset the level
+                MapDataVisualizer visualizer = FindObjectOfType<MapDataVisualizer>();
+                if (visualizer != null)
+                {
+                    visualizer.ResetPlayMode();
+                }
+                
+                isMoving = false;
+                yield break; // Exit the coroutine immediately
+            }
 
 
             // Execute wall interaction if we hit a standard wall or goal
             if (wallObjectHit != null)
             {
-                if (reachedGoal && _successSprite != null)
+                WallBase wall = wallObjectHit.GetComponent<WallBase>();
+                
+                // Check if this is a SlideWall
+                if (wall is SlideWallUp || wall is SlideWallRight || wall is SlideWallDown || wall is SlideWallLeft)
+                {
+                    // Execute gimmick (sound/anim)
+                    wall.ExecuteOnHit(this);
+                    
+                    // Get redirect direction based on wall type
+                    int newDirection = 0;
+                    if (wall is SlideWallUp)
+                        newDirection = 0; // Up
+                    else if (wall is SlideWallRight)
+                        newDirection = 1; // Right
+                    else if (wall is SlideWallDown)
+                        newDirection = 2; // Down
+                    else if (wall is SlideWallLeft)
+                        newDirection = 3; // Left
+                    
+                    // Calculate exit position (one step in the new direction)
+                    Vector2Int exitDirection = directions[newDirection];
+                    Vector2Int exitPos = currentGridPosition + exitDirection;
+                    
+                    // Check if exit position is valid (reuse mapSize from outer scope)
+                    bool canExit = true;
+                    
+                    // Check bounds
+                    if (mapSize.x > 0 && mapSize.y > 0 && 
+                        (exitPos.x < 0 || exitPos.x >= mapSize.x || exitPos.y < 0 || exitPos.y >= mapSize.y))
+                    {
+                        canExit = false;
+                    }
+                    
+                    // Check for walls at exit position
+                    if (canExit)
+                    {
+                        GameObject objectAtExit = MapManager.Instance.GetObjectAt(exitPos);
+                        if (objectAtExit != null)
+                        {
+                            WallBase exitWall = objectAtExit.GetComponent<WallBase>();
+                            if (exitWall != null && !(exitWall is GoalWall))
+                            {
+                                canExit = false;
+                            }
+                        }
+                    }
+                    
+                    // If can exit, animate movement to exit position
+                    if (canExit)
+                    {
+                        // Reuse rectTransform and cellSize from outer scope
+                        // Update cellSize if needed
+                        cellSize = 1f;
+                        if (transform.parent != null)
+                        {
+                            PlayModeCellSizeHolder cellSizeHolder = transform.parent.GetComponent<PlayModeCellSizeHolder>();
+                            if (cellSizeHolder != null)
+                            {
+                                cellSize = cellSizeHolder.cellSize;
+                            }
+                        }
+                        
+                        if (rectTransform != null && cellSize != 1f)
+                        {
+                            // UI mode - use anchoredPosition with cellSize
+                            Vector2 targetAnchoredPos = new Vector2(exitPos.x * cellSize, exitPos.y * cellSize);
+                            while (Vector2.Distance(rectTransform.anchoredPosition, targetAnchoredPos) > 0.01f)
+                            {
+                                rectTransform.anchoredPosition = Vector2.MoveTowards(rectTransform.anchoredPosition, targetAnchoredPos, moveSpeed * cellSize * Time.deltaTime);
+                                yield return null;
+                            }
+                            rectTransform.anchoredPosition = targetAnchoredPos;
+                        }
+                        else
+                        {
+                            // World mode - use transform.position
+                            Vector3 targetWorldPos = new Vector3(exitPos.x, exitPos.y, 0);
+                            while (Vector3.Distance(transform.position, targetWorldPos) > 0.01f)
+                            {
+                                transform.position = Vector3.MoveTowards(transform.position, targetWorldPos, moveSpeed * Time.deltaTime);
+                                yield return null;
+                            }
+                            transform.position = targetWorldPos;
+                        }
+                        
+                        currentGridPosition = exitPos;
+                    }
+                }
+                else if (reachedGoal && _successSprite != null)
                 {
                     // Change sprite to success sprite
                     Image image = GetComponent<Image>();
@@ -261,7 +325,11 @@ public class PlayerController : MonoBehaviour
                     }
                 }
                 
-                wallObjectHit.GetComponent<WallBase>()?.ExecuteOnHit(this);
+                // Execute wall effect (for non-SlideWall types)
+                if (!(wall is SlideWallUp || wall is SlideWallRight || wall is SlideWallDown || wall is SlideWallLeft))
+                {
+                    wallObjectHit.GetComponent<WallBase>()?.ExecuteOnHit(this);
+                }
             }
             else if (reachedGoal)
             {
@@ -296,6 +364,41 @@ public class PlayerController : MonoBehaviour
             }
         }
         
+        // Check if player actually moved from starting position
+        bool playerMoved = (currentGridPosition != startPos);
+        
+        // Only increment move count and break walls if player actually moved
+        if (playerMoved)
+        {
+            tryCount++;
+            UI_HUD.Instance.UpdateTryCount(tryCount);
+            OnMoveCountChanged?.Invoke(tryCount);
+            
+            // Break wall from previous move if it was marked and we successfully moved
+            if (canBreakWallThisMove && previousWallInFront.HasValue)
+            {
+                Vector2Int wallPos = previousWallInFront.Value;
+                Debug.Log($"Processing BreakableWall at {wallPos}");
+                
+                GameObject wallObj = MapManager.Instance.GetObjectAt(wallPos);
+                if (wallObj != null)
+                {
+                    BreakableWall breakableWall = wallObj.GetComponent<BreakableWall>();
+                    if (breakableWall != null)
+                    {
+                        Debug.Log($"Breaking wall at {wallPos}");
+                        breakableWall.ExecuteOnHit(this);
+                        MapManager.Instance.RemoveObjectAt(wallPos);
+                        MapManager.Instance.RemoveWallFromIdMap(breakableWall.GetWallId());
+                    }
+                }
+            }
+        }
+        else
+        {
+            Debug.Log("Player did not move - no count increment, no wall breaking");
+        }
+        
         // Check if we are dying (out of bounds)
         if (_isDying)
         {
@@ -324,8 +427,8 @@ public class PlayerController : MonoBehaviour
         
         Debug.Log($"Player Died: {reason}");
         
-        // Wait a moment
-        yield return new WaitForSeconds(1f);
+        // Wait 3 seconds before resetting
+        yield return new WaitForSeconds(3f);
         
         // Auto-reset: Find MapDataVisualizer and call ResetPlayMode
         MapDataVisualizer visualizer = FindObjectOfType<MapDataVisualizer>();
