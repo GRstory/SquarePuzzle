@@ -8,6 +8,9 @@ public class MapDataVisualizer : MonoBehaviour
 {
     [SerializeField] private List<TextAsset> _levelJsonList = new List<TextAsset>();
     [SerializeField] private StageDrawer _stageDrawerPrefab;
+    
+    // Track loaded file paths to prevent duplicates
+    private HashSet<string> _loadedFilePaths = new HashSet<string>();
 
     [SerializeField] private TMP_Text _stageNumberText;
     [SerializeField] private TMP_Text _moveCountText;
@@ -180,11 +183,15 @@ public class MapDataVisualizer : MonoBehaviour
     {
         if (_worldListPanel != null)
         {
-            // Reload generated maps before showing the list
+            // Check for new maps before showing the list
+            int previousCount = _levelJsonList.Count;
             LoadGeneratedMaps();
             
-            // Reinitialize WorldListPanel with updated list
-            _worldListPanel.Initialize(_levelJsonList, LoadStage, OnWorldListVisibilityChanged);
+            // Only reinitialize if new maps were loaded
+            if (_levelJsonList.Count > previousCount)
+            {
+                _worldListPanel.Initialize(_levelJsonList, LoadStage, OnWorldListVisibilityChanged);
+            }
             
             _worldListPanel.Toggle();
         }
@@ -459,9 +466,16 @@ case EMapObjectType.Wall: return _wallPrefab;
         }
 
         string[] jsonFiles = System.IO.Directory.GetFiles(streamingAssetsPath, "*.json");
+        int newMapsLoaded = 0;
         
         foreach (string filePath in jsonFiles)
         {
+            // Skip if already loaded
+            if (_loadedFilePaths.Contains(filePath))
+            {
+                continue;
+            }
+            
             try
             {
                 string jsonText = System.IO.File.ReadAllText(filePath);
@@ -469,10 +483,9 @@ case EMapObjectType.Wall: return _wallPrefab;
                 // Create a TextAsset from the JSON text
                 TextAsset textAsset = new TextAsset(jsonText);
                 
-                if (!_levelJsonList.Contains(textAsset))
-                {
-                    _levelJsonList.Add(textAsset);
-                }
+                _levelJsonList.Add(textAsset);
+                _loadedFilePaths.Add(filePath);
+                newMapsLoaded++;
             }
             catch (System.Exception e)
             {
@@ -480,7 +493,10 @@ case EMapObjectType.Wall: return _wallPrefab;
             }
         }
 
-        Debug.Log($"[MapDataVisualizer] Loaded {jsonFiles.Length} generated maps from StreamingAssets/Maps");
+        if (newMapsLoaded > 0)
+        {
+            Debug.Log($"[MapDataVisualizer] Loaded {newMapsLoaded} new maps from StreamingAssets/Maps (Total: {_levelJsonList.Count})");
+        }
     }
 
     private void LoadStage(int index)

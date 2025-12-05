@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using System.IO;
 using TMPro;
 using UnityEngine;
@@ -28,6 +29,7 @@ public class MapGeneratorUI : MonoBehaviour
 
     private MapData _lastGeneratedMap;
     private bool _isGenerating = false;
+    private HashSet<int> _existingSeeds = new HashSet<int>();
 
     private void Start()
     {
@@ -40,6 +42,9 @@ public class MapGeneratorUI : MonoBehaviour
         {
             _batchGenerateButton.onClick.AddListener(OnBatchGenerateButtonClicked);
         }
+
+        // Load existing seeds from saved maps
+        LoadExistingSeeds();
 
         UpdateStatus("Ready to generate maps", Color.white);
         UpdateStats("");
@@ -58,9 +63,6 @@ public class MapGeneratorUI : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Show the generator panel
-    /// </summary>
     public void Show()
     {
         if (_panel != null)
@@ -69,9 +71,6 @@ public class MapGeneratorUI : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Hide the generator panel
-    /// </summary>
     public void Hide()
     {
         if (_panel != null)
@@ -80,9 +79,6 @@ public class MapGeneratorUI : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Toggle panel visibility
-    /// </summary>
     public void Toggle()
     {
         if (_panel != null)
@@ -91,9 +87,6 @@ public class MapGeneratorUI : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Generate button clicked
-    /// </summary>
     private void OnGenerateButtonClicked()
     {
         if (_isGenerating)
@@ -129,9 +122,6 @@ public class MapGeneratorUI : MonoBehaviour
         StartCoroutine(GenerateMapCoroutine(targetMoves, seed));
     }
 
-    /// <summary>
-    /// Batch generate button clicked
-    /// </summary>
     private void OnBatchGenerateButtonClicked()
     {
         if (_isGenerating)
@@ -174,9 +164,6 @@ public class MapGeneratorUI : MonoBehaviour
         StartCoroutine(BatchGenerateCoroutine(batchCount, minMoves));
     }
 
-    /// <summary>
-    /// Generate map in coroutine to avoid freezing UI
-    /// </summary>
     private IEnumerator GenerateMapCoroutine(int targetMoves, int? seed)
     {
         _isGenerating = true;
@@ -198,20 +185,32 @@ public class MapGeneratorUI : MonoBehaviour
         {
             _lastGeneratedMap = generatedMap;
 
+            // Check if duplicate before saving
+            bool isDuplicate = IsDuplicateSeed(generatedMap.Seed);
+
             // Auto-save the map
             string savedPath = SaveMapToFile(generatedMap, targetMoves);
 
             if (!string.IsNullOrEmpty(savedPath))
             {
-                UpdateStatus($"✓ SUCCESS! Map saved to: {savedPath}", Color.green);
+                UpdateStatus($"SUCCESS! Map saved to: {savedPath}", Color.green);
                 UpdateStats($"Target Moves: {targetMoves}\n" +
                            $"Actual Moves: {generatedMap.OptimalPath.Count}\n" +
                            $"Objects: {generatedMap.MapObjects.Count}\n" +
+                           $"Seed: {generatedMap.Seed}\n" +
+                           $"Time: {elapsedTime:F2}s");
+            }
+            else if (isDuplicate)
+            {
+                UpdateStatus($"Map with seed {generatedMap.Seed} already exists. Not saved.", Color.yellow);
+                UpdateStats($"Target Moves: {targetMoves}\n" +
+                           $"Actual Moves: {generatedMap.OptimalPath.Count}\n" +
+                           $"Seed: {generatedMap.Seed} (DUPLICATE)\n" +
                            $"Time: {elapsedTime:F2}s");
             }
             else
             {
-                UpdateStatus($"✓ Map generated but failed to save", Color.yellow);
+                UpdateStatus($"Map generated but failed to save", Color.yellow);
                 UpdateStats($"Target Moves: {targetMoves}\n" +
                            $"Actual Moves: {generatedMap.OptimalPath.Count}\n" +
                            $"Time: {elapsedTime:F2}s");
@@ -219,7 +218,7 @@ public class MapGeneratorUI : MonoBehaviour
         }
         else
         {
-            UpdateStatus($"✗ FAILED to generate map with {targetMoves} moves after {_maxRetries} attempts", Color.red);
+            UpdateStatus($"FAILED to generate map with {targetMoves} moves after {_maxRetries} attempts", Color.red);
             UpdateStats($"Time: {elapsedTime:F2}s\n" +
                        $"Try adjusting target moves or seed");
         }
@@ -228,9 +227,6 @@ public class MapGeneratorUI : MonoBehaviour
         _generateButton.interactable = true;
     }
 
-    /// <summary>
-    /// Batch generate maps
-    /// </summary>
     private IEnumerator BatchGenerateCoroutine(int count, int minMoves)
     {
         _isGenerating = true;
@@ -257,11 +253,18 @@ public class MapGeneratorUI : MonoBehaviour
 
             if (generatedMap != null)
             {
+                // Check if duplicate before saving
+                bool isDuplicate = IsDuplicateSeed(generatedMap.Seed);
+                
                 string savedPath = SaveMapToFile(generatedMap, randomMoves);
                 if (!string.IsNullOrEmpty(savedPath))
                 {
                     successCount++;
                     Debug.Log($"[Batch {successCount}/{count}] SUCCESS: {randomMoves} moves -> {savedPath}");
+                }
+                else if (isDuplicate)
+                {
+                    Debug.LogWarning($"[Batch attempt {totalAttempts}] DUPLICATE: Map with seed {generatedMap.Seed} already exists. Skipping.");
                 }
                 else
                 {
@@ -276,7 +279,7 @@ public class MapGeneratorUI : MonoBehaviour
 
         float elapsedTime = Time.realtimeSinceStartup - startTime;
 
-        UpdateStatus($"✓ Batch generation complete!", Color.green);
+        UpdateStatus($"Batch generation complete!", Color.green);
         UpdateStats($"Requested: {count}\n" +
                    $"Generated: {successCount}\n" +
                    $"Total Attempts: {totalAttempts}\n" +
@@ -290,13 +293,55 @@ public class MapGeneratorUI : MonoBehaviour
         _batchGenerateButton.interactable = true;
     }
 
-    /// <summary>
-    /// Save generated map to JSON file
-    /// </summary>
+    private void LoadExistingSeeds()
+    {
+        _existingSeeds.Clear();
+        
+        string streamingAssetsPath = System.IO.Path.Combine(Application.streamingAssetsPath, "Maps");
+        if (!System.IO.Directory.Exists(streamingAssetsPath))
+        {
+            return;
+        }
+
+        string[] jsonFiles = System.IO.Directory.GetFiles(streamingAssetsPath, "*.json");
+        
+        foreach (string filePath in jsonFiles)
+        {
+            try
+            {
+                string jsonText = System.IO.File.ReadAllText(filePath);
+                MapData mapData = JsonUtility.FromJson<MapData>(jsonText);
+                
+                if (mapData != null && mapData.Seed != 0)
+                {
+                    _existingSeeds.Add(mapData.Seed);
+                }
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogWarning($"[MapGeneratorUI] Failed to read seed from {filePath}: {e.Message}");
+            }
+        }
+
+        Debug.Log($"[MapGeneratorUI] Loaded {_existingSeeds.Count} existing seeds");
+    }
+
+    private bool IsDuplicateSeed(int seed)
+    {
+        return _existingSeeds.Contains(seed);
+    }
+
     private string SaveMapToFile(MapData mapData, int targetMoves)
     {
         try
         {
+            // Check for duplicate seed
+            if (IsDuplicateSeed(mapData.Seed))
+            {
+                Debug.LogWarning($"[MapGeneratorUI] Map with seed {mapData.Seed} already exists. Skipping save.");
+                return null;
+            }
+
             // Create filename with timestamp
             string timestamp = System.DateTime.Now.ToString("yyyyMMdd_HHmmss");
             string filename = $"{_filePrefix}{targetMoves}moves_{timestamp}.json";
@@ -314,7 +359,11 @@ public class MapGeneratorUI : MonoBehaviour
             
             string fullPath = System.IO.Path.Combine(streamingAssetsPath, filename);
             System.IO.File.WriteAllText(fullPath, json);
-            Debug.Log($"[MapGeneratorUI] Saved map to: {fullPath}");
+            
+            // Add seed to existing seeds set
+            _existingSeeds.Add(mapData.Seed);
+            
+            Debug.Log($"[MapGeneratorUI] Saved map to: {fullPath} (Seed: {mapData.Seed})");
 
 #if UNITY_EDITOR
             // Refresh asset database in editor
@@ -330,9 +379,6 @@ public class MapGeneratorUI : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Update status text
-    /// </summary>
     private void UpdateStatus(string message, Color color)
     {
         if (_statusText != null)
@@ -343,9 +389,6 @@ public class MapGeneratorUI : MonoBehaviour
         Debug.Log($"[MapGeneratorUI] {message}");
     }
 
-    /// <summary>
-    /// Update statistics text
-    /// </summary>
     private void UpdateStats(string stats)
     {
         if (_statsText != null)
@@ -354,9 +397,6 @@ public class MapGeneratorUI : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Get the last generated map
-    /// </summary>
     public MapData GetLastGeneratedMap()
     {
         return _lastGeneratedMap;

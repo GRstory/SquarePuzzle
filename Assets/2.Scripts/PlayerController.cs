@@ -90,15 +90,15 @@ public class PlayerController : MonoBehaviour
                     {
                         if (wall is BreakableWall)// 이미 마킹된 벽이면 즉시 파괴
                         {
-                            if (_wallInFrontPosition.HasValue && _wallInFrontPosition.Value == nextPos && _canBreakWall)
+                            if (previousWallInFront.HasValue && previousWallInFront.Value == nextPos && canBreakWallThisMove)
                             {
                                 BreakableWall breakableWall = wall as BreakableWall;
                                 breakableWall.ExecuteOnHit(this);
                                 MapManager.Instance.RemoveObjectAt(nextPos);
                                 MapManager.Instance.RemoveWallFromIdMap(breakableWall.GetWallId());
                                 
-                                _wallInFrontPosition = null;
-                                _canBreakWall = false;
+                                previousWallInFront = null;
+                                canBreakWallThisMove = false;
                                 
                                 targetGridPos = nextPos;
                                 continue;
@@ -235,41 +235,53 @@ public class PlayerController : MonoBehaviour
                         }
                     }
                     
-                    if (canExit)
+                    if (!canExit)
                     {
-                        cellSize = 1f;
-                        if (transform.parent != null)
+                        // Cannot exit SlideWall - player dies
+                        Debug.Log($"Player cannot exit SlideWall at {currentGridPosition}. Resetting...");
+                        MapDataVisualizer visualizer = FindObjectOfType<MapDataVisualizer>();
+                        if (visualizer != null)
                         {
-                            PlayModeCellSizeHolder cellSizeHolder = transform.parent.GetComponent<PlayModeCellSizeHolder>();
-                            if (cellSizeHolder != null)
-                            {
-                                cellSize = cellSizeHolder.cellSize;
-                            }
+                            visualizer.ResetPlayMode();
                         }
                         
-                        if (rectTransform != null && cellSize != 1f)
-                        {
-                            Vector2 targetAnchoredPos = new Vector2(exitPos.x * cellSize, exitPos.y * cellSize);
-                            while (Vector2.Distance(rectTransform.anchoredPosition, targetAnchoredPos) > 0.01f)
-                            {
-                                rectTransform.anchoredPosition = Vector2.MoveTowards(rectTransform.anchoredPosition, targetAnchoredPos, moveSpeed * cellSize * Time.deltaTime);
-                                yield return null;
-                            }
-                            rectTransform.anchoredPosition = targetAnchoredPos;
-                        }
-                        else
-                        {
-                            Vector3 targetWorldPos = new Vector3(exitPos.x, exitPos.y, 0);
-                            while (Vector3.Distance(transform.position, targetWorldPos) > 0.01f)
-                            {
-                                transform.position = Vector3.MoveTowards(transform.position, targetWorldPos, moveSpeed * Time.deltaTime);
-                                yield return null;
-                            }
-                            transform.position = targetWorldPos;
-                        }
-                        
-                        currentGridPosition = exitPos;
+                        isMoving = false;
+                        yield break;
                     }
+                    
+                    // Can exit - animate to exit position
+                    cellSize = 1f;
+                    if (transform.parent != null)
+                    {
+                        PlayModeCellSizeHolder cellSizeHolder = transform.parent.GetComponent<PlayModeCellSizeHolder>();
+                        if (cellSizeHolder != null)
+                        {
+                            cellSize = cellSizeHolder.cellSize;
+                        }
+                    }
+                    
+                    if (rectTransform != null && cellSize != 1f)
+                    {
+                        Vector2 targetAnchoredPos = new Vector2(exitPos.x * cellSize, exitPos.y * cellSize);
+                        while (Vector2.Distance(rectTransform.anchoredPosition, targetAnchoredPos) > 0.01f)
+                        {
+                            rectTransform.anchoredPosition = Vector2.MoveTowards(rectTransform.anchoredPosition, targetAnchoredPos, moveSpeed * cellSize * Time.deltaTime);
+                            yield return null;
+                        }
+                        rectTransform.anchoredPosition = targetAnchoredPos;
+                    }
+                    else
+                    {
+                        Vector3 targetWorldPos = new Vector3(exitPos.x, exitPos.y, 0);
+                        while (Vector3.Distance(transform.position, targetWorldPos) > 0.01f)
+                        {
+                            transform.position = Vector3.MoveTowards(transform.position, targetWorldPos, moveSpeed * Time.deltaTime);
+                            yield return null;
+                        }
+                        transform.position = targetWorldPos;
+                    }
+                    
+                    currentGridPosition = exitPos;
                 }
                 else if (reachedGoal && _successSprite != null)
                 {

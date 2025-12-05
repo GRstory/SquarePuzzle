@@ -89,6 +89,12 @@ public class PuzzleSolver
             {
                 var nextState = SimulateMove(currentState, dir);
                 
+                // Skip if SimulateMove returned null (invalid SlideWall exit)
+                if (nextState == null)
+                {
+                    continue;
+                }
+                
                 // Check if out of bounds (failure)
                 if (nextState.position.x < 0 || nextState.position.x >= _mapData.MapSize.x ||
                     nextState.position.y < 0 || nextState.position.y >= _mapData.MapSize.y)
@@ -194,11 +200,14 @@ public class PuzzleSolver
                         }
                     }
                     
-                    // If can exit, move to exit position
-                    if (canExit)
+                    // If cannot exit, this is an invalid state - return null
+                    if (!canExit)
                     {
-                        targetPos = exitPos;
+                        return null;
                     }
+                    
+                    // Can exit - move to exit position
+                    targetPos = exitPos;
                     
                     break;
                 }

@@ -1,30 +1,13 @@
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
-
-/// <summary>
-/// Generates random solvable puzzle maps with specified move count
-/// </summary>
 public static class MapGenerator
 {
-    /// <summary>
-    /// Generate a map with exact target move count
-    /// </summary>
-    /// <param name="targetMoves">Desired minimum move count (1-20 recommended)</param>
-    /// <param name="seed">Optional random seed for reproducibility</param>
-    /// <returns>Generated MapData or null if failed</returns>
     public static MapData GenerateMap(int targetMoves, int? seed = null)
     {
         return GenerateMapWithRetry(targetMoves, 10000, seed);
     }
 
-    /// <summary>
-    /// Generate a map with retry logic
-    /// </summary>
-    /// <param name="targetMoves">Desired minimum move count</param>
-    /// <param name="maxRetries">Maximum generation attempts</param>
-    /// <param name="seed">Optional random seed</param>
-    /// <returns>Generated MapData or null if failed after max retries</returns>
     public static MapData GenerateMapWithRetry(int targetMoves, int maxRetries = 10000, int? seed = null)
     {
         int usedSeed;
@@ -79,9 +62,6 @@ public static class MapGenerator
         return null;
     }
 
-    /// <summary>
-    /// Single attempt to generate a map
-    /// </summary>
     private static MapData GenerateMapAttempt(int targetMoves)
     {
         Vector2Int mapSize = new Vector2Int(15, 15);
@@ -134,9 +114,6 @@ public static class MapGenerator
         return newMap;
     }
 
-    /// <summary>
-    /// Get a random unoccupied position
-    /// </summary>
     private static Vector2Int GetRandomPosition(Vector2Int mapSize, HashSet<Vector2Int> occupied)
     {
         Vector2Int pos;
@@ -166,9 +143,6 @@ public static class MapGenerator
         return pos;
     }
 
-    /// <summary>
-    /// Place goal with appropriate distance for target moves
-    /// </summary>
     private static Vector2Int PlaceGoalForTargetMoves(Vector2Int mapSize, Vector2Int playerPos, int targetMoves, HashSet<Vector2Int> occupied)
     {
         // Minimum Manhattan distance should be related to target moves
@@ -201,9 +175,6 @@ public static class MapGenerator
         return candidates[Random.Range(0, candidates.Count)];
     }
 
-    /// <summary>
-    /// Calculate wall count based on target moves
-    /// </summary>
     private static int CalculateWallCount(int targetMoves)
     {
         // More moves = more walls
@@ -212,9 +183,6 @@ public static class MapGenerator
         return Mathf.RoundToInt(targetMoves * multiplier);
     }
 
-    /// <summary>
-    /// Calculate breakable wall count based on target moves
-    /// </summary>
     private static int CalculateBreakableWallCount(int targetMoves)
     {
         if (targetMoves < 3) return 0;
@@ -223,9 +191,6 @@ public static class MapGenerator
         return Random.Range(1, 4);
     }
 
-    /// <summary>
-    /// Calculate slide wall count based on target moves
-    /// </summary>
     private static int CalculateSlideWallCount(int targetMoves)
     {
         if (targetMoves < 4) return 0;
@@ -234,9 +199,6 @@ public static class MapGenerator
         return Random.Range(1, 4);
     }
 
-    /// <summary>
-    /// Place standard walls
-    /// </summary>
     private static void PlaceWalls(MapData map, Vector2Int mapSize, HashSet<Vector2Int> occupied, int count)
     {
         for (int i = 0; i < count; i++)
@@ -255,9 +217,6 @@ public static class MapGenerator
         }
     }
 
-    /// <summary>
-    /// Place breakable walls
-    /// </summary>
     private static void PlaceBreakableWalls(MapData map, Vector2Int mapSize, HashSet<Vector2Int> occupied, int count)
     {
         for (int i = 0; i < count; i++)
@@ -276,9 +235,6 @@ public static class MapGenerator
         }
     }
 
-    /// <summary>
-    /// Place slide walls with random directions
-    /// </summary>
     private static void PlaceSlideWalls(MapData map, Vector2Int mapSize, HashSet<Vector2Int> occupied, int count)
     {
         EMapObjectType[] slideTypes = 
