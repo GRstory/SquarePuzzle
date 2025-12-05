@@ -22,8 +22,8 @@ public class BreakableWall : WallBase
         if (!isBroken)
         {
             isBroken = true;
-            // Destroy the wall game object
-            Destroy(gameObject);
+            gameObject.SetActive(false);
+            Destroy(gameObject, 0.1f);
         }
     }
 

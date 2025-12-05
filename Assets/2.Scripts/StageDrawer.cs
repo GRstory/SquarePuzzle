@@ -66,6 +66,20 @@ public class StageDrawer : MonoBehaviour
         HashSet<Vector2Int> pathBrokenWalls = new HashSet<Vector2Int>();
         Vector2Int? wallInFront = null;
         
+        // Declare directions array first
+        Vector2Int[] directions = { Vector2Int.up, Vector2Int.right, Vector2Int.down, Vector2Int.left };
+        
+        // Check for adjacent BreakableWalls at start position (matches PlayerController.CheckAdjacentWalls)
+        for (int dir = 0; dir < 4; dir++)
+        {
+            Vector2Int checkPos = playerPos + directions[dir];
+            if (objectMap.ContainsKey(checkPos) && objectMap[checkPos].Type == EMapObjectType.BreakableWall)
+            {
+                wallInFront = checkPos;
+                break; // Only mark one wall
+            }
+        }
+        
         // Create a mutable copy of objectMap for dynamic simulation
         Dictionary<Vector2Int, MapObject> mutableObjectMap = new Dictionary<Vector2Int, MapObject>(objectMap);
         
@@ -79,7 +93,6 @@ public class StageDrawer : MonoBehaviour
         pathPoints.Add(new Vector2(startPos.x * cellSize + cellSize / 2f, startPos.y * cellSize + cellSize / 2f));
 
         // Simulate full path to get all positions
-        Vector2Int[] directions = { Vector2Int.up, Vector2Int.right, Vector2Int.down, Vector2Int.left };
         for (int i = 0; i < mapData.OptimalPath.Count; i++)
         {
             int dirIndex = mapData.OptimalPath[i];
@@ -137,6 +150,17 @@ public class StageDrawer : MonoBehaviour
         currentPos = playerPos;
         HashSet<Vector2Int> brokenWallPositions = new HashSet<Vector2Int>();
         wallInFront = null;
+        
+        // Check for adjacent BreakableWalls at start position (matches initial check above)
+        for (int dir = 0; dir < 4; dir++)
+        {
+            Vector2Int checkPos = playerPos + directions[dir];
+            if (objectMap.ContainsKey(checkPos) && objectMap[checkPos].Type == EMapObjectType.BreakableWall)
+            {
+                wallInFront = checkPos;
+                break; // Only mark one wall
+            }
+        }
         for (int i = 0; i <= moveIndex; i++)
         {
             if (i >= mapData.OptimalPath.Count) break;

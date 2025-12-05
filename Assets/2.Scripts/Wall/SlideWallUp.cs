@@ -6,8 +6,7 @@ public class SlideWallUp : WallBase
 {
     public override void ExecuteOnHit(PlayerController player)
     {
-        // This wall redirects player upward
-        // The actual redirection logic is handled in PlayerController
+
     }
 
     public int GetRedirectDirection()

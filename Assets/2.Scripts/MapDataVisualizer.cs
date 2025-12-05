@@ -121,6 +121,9 @@ public class MapDataVisualizer : MonoBehaviour
 
         _mainDrawer = Instantiate(_stageDrawerPrefab, _mainViewParent);
         
+        // Load generated maps from folder
+        LoadGeneratedMaps();
+        
         if (_worldListPanel != null)
         {
             _worldListPanel.Initialize(_levelJsonList, LoadStage, OnWorldListVisibilityChanged);
@@ -177,6 +180,12 @@ public class MapDataVisualizer : MonoBehaviour
     {
         if (_worldListPanel != null)
         {
+            // Reload generated maps before showing the list
+            LoadGeneratedMaps();
+            
+            // Reinitialize WorldListPanel with updated list
+            _worldListPanel.Initialize(_levelJsonList, LoadStage, OnWorldListVisibilityChanged);
+            
             _worldListPanel.Toggle();
         }
     }
@@ -295,7 +304,7 @@ public class MapDataVisualizer : MonoBehaviour
                 _playModePlayer = instance.GetComponent<PlayerController>();
                 if (_playModePlayer != null)
                 {
-                    _playModePlayer.SetInitialPosition(playerStartPos);
+                    // Don't set position yet - wait until MapManager is ready
                     _playModePlayer.SetControlEnabled(true);
                     _playModePlayer.OnMoveCountChanged += OnPlayModeMove;
                 }
@@ -344,6 +353,13 @@ public class MapDataVisualizer : MonoBehaviour
             foreach (var kvp in _playModeWallIdMap)
             {
                 MapManager.Instance.AddWallToIdMap(kvp.Key, kvp.Value);
+            }
+            
+            // Now set player position and check for adjacent walls
+            if (_playModePlayer != null)
+            {
+                _playModePlayer.SetInitialPosition(playerStartPos);
+                Debug.Log($"Player position set to {playerStartPos} after MapManager registration");
             }
         }
     }
@@ -430,6 +446,42 @@ case EMapObjectType.Wall: return _wallPrefab;
         StartPlayMode();
     }
     #endregion
+
+    private void LoadGeneratedMaps()
+    {
+        // Always load from StreamingAssets/Maps folder (works in both Editor and Build)
+        string streamingAssetsPath = System.IO.Path.Combine(Application.streamingAssetsPath, "Maps");
+        
+        if (!System.IO.Directory.Exists(streamingAssetsPath))
+        {
+            Debug.LogWarning($"[MapDataVisualizer] StreamingAssets/Maps folder not found: {streamingAssetsPath}");
+            return;
+        }
+
+        string[] jsonFiles = System.IO.Directory.GetFiles(streamingAssetsPath, "*.json");
+        
+        foreach (string filePath in jsonFiles)
+        {
+            try
+            {
+                string jsonText = System.IO.File.ReadAllText(filePath);
+                
+                // Create a TextAsset from the JSON text
+                TextAsset textAsset = new TextAsset(jsonText);
+                
+                if (!_levelJsonList.Contains(textAsset))
+                {
+                    _levelJsonList.Add(textAsset);
+                }
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogError($"[MapDataVisualizer] Failed to load map from {filePath}: {e.Message}");
+            }
+        }
+
+        Debug.Log($"[MapDataVisualizer] Loaded {jsonFiles.Length} generated maps from StreamingAssets/Maps");
+    }
 
     private void LoadStage(int index)
     {
