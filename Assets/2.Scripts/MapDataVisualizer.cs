@@ -11,6 +11,7 @@ public class MapDataVisualizer : MonoBehaviour
     
     // Track loaded file paths to prevent duplicates
     private HashSet<string> _loadedFilePaths = new HashSet<string>();
+    private Dictionary<int, string> _levelFilenames = new Dictionary<int, string>(); // Map level index to filename
 
     [SerializeField] private TMP_Text _stageNumberText;
     [SerializeField] private TMP_Text _moveCountText;
@@ -20,6 +21,7 @@ public class MapDataVisualizer : MonoBehaviour
     [SerializeField] private Button _nextMoveButton;
     [SerializeField] private Button _worldListButton;
     [SerializeField] private Button _playButton;
+    [SerializeField] private Button _generateButton;
     [SerializeField] private TMP_Text _playButtonText;
     
     [Header("Play Mode UI")]
@@ -129,7 +131,7 @@ public class MapDataVisualizer : MonoBehaviour
         
         if (_worldListPanel != null)
         {
-            _worldListPanel.Initialize(_levelJsonList, LoadStage, OnWorldListVisibilityChanged);
+            _worldListPanel.Initialize(_levelJsonList, _levelFilenames, LoadStage, OnWorldListVisibilityChanged);
             _worldListPanel.Hide();
         }
         
@@ -190,7 +192,7 @@ public class MapDataVisualizer : MonoBehaviour
             // Only reinitialize if new maps were loaded
             if (_levelJsonList.Count > previousCount)
             {
-                _worldListPanel.Initialize(_levelJsonList, LoadStage, OnWorldListVisibilityChanged);
+                _worldListPanel.Initialize(_levelJsonList, _levelFilenames, LoadStage, OnWorldListVisibilityChanged);
             }
             
             _worldListPanel.Toggle();
@@ -203,6 +205,38 @@ public class MapDataVisualizer : MonoBehaviour
         if (_playButton != null)
         {
             _playButton.gameObject.SetActive(!isVisible);
+        }
+        
+        // Disable navigation buttons and stage number text when WorldList is shown
+        if (_prevStageButton != null)
+        {
+            _prevStageButton.interactable = !isVisible;
+        }
+        
+        if (_nextStageButton != null)
+        {
+            _nextStageButton.interactable = !isVisible;
+        }
+        
+        if (_stageNumberText != null)
+        {
+            _stageNumberText.gameObject.SetActive(!isVisible);
+        }
+        
+        // Disable move step buttons and move count text when WorldList is shown
+        if (_prevMoveButton != null)
+        {
+            _prevMoveButton.interactable = !isVisible;
+        }
+        
+        if (_nextMoveButton != null)
+        {
+            _nextMoveButton.interactable = !isVisible;
+        }
+        
+        if (_moveCountText != null)
+        {
+            _moveCountText.gameObject.SetActive(!isVisible);
         }
     }
     
@@ -226,9 +260,11 @@ public class MapDataVisualizer : MonoBehaviour
         
         // Hide visualization
         _mainDrawer.gameObject.SetActive(false);
-        _prevMoveButton.gameObject.SetActive(false);
-        _nextMoveButton.gameObject.SetActive(false);
-        _moveCountText.gameObject.SetActive(false);
+        
+        // Disable move step buttons during play mode
+        if (_prevMoveButton != null) _prevMoveButton.interactable = false;
+        if (_nextMoveButton != null) _nextMoveButton.interactable = false;
+        if (_moveCountText != null) _moveCountText.gameObject.SetActive(false);
         
         // Show Play Mode UI
         if (_playModeInfoText != null) _playModeInfoText.gameObject.SetActive(true);
@@ -247,8 +283,24 @@ public class MapDataVisualizer : MonoBehaviour
         if (_playButtonText != null)
         {
             _playButtonText.text = "Stop Playmode";
-            _playButtonText.color = new Color32(0xBD, 0x49, 0x32, 0xFF);
+            _playButtonText.color = Color.white;
         }
+        
+        if (_playButton != null)
+        {
+            Image buttonImage = _playButton.GetComponent<Image>();
+            if (buttonImage != null)
+            {
+                buttonImage.color = new Color32(0xBD, 0x49, 0x32, 0xFF);
+            }
+        }
+        
+        // Disable world navigation buttons during play mode
+        if (_prevStageButton != null) _prevStageButton.interactable = false;
+        if (_nextStageButton != null) _nextStageButton.interactable = false;
+        if (_worldListButton != null) _worldListButton.interactable = false;
+        if (_stageNumberText != null) _stageNumberText.gameObject.SetActive(false);
+        if (_generateButton != null) _generateButton.interactable = false;
         
         // Create play mode parent
         _playModeParent = new GameObject("PlayModeObjects");
@@ -416,15 +468,33 @@ public class MapDataVisualizer : MonoBehaviour
         
         // Show visualization
         _mainDrawer.gameObject.SetActive(true);
-        _prevMoveButton.gameObject.SetActive(true);
-        _nextMoveButton.gameObject.SetActive(true);
-        _moveCountText.gameObject.SetActive(true);
+        
+        // Re-enable move step buttons
+        if (_prevMoveButton != null) _prevMoveButton.interactable = true;
+        if (_nextMoveButton != null) _nextMoveButton.interactable = true;
+        if (_moveCountText != null) _moveCountText.gameObject.SetActive(true);
         
         if (_playButtonText != null)
         {
             _playButtonText.text = "Play Manual";
             _playButtonText.color = Color.black;
         }
+        
+        if (_playButton != null)
+        {
+            Image buttonImage = _playButton.GetComponent<Image>();
+            if (buttonImage != null)
+            {
+                buttonImage.color = Color.white;
+            }
+        }
+        
+        // Re-enable world navigation buttons
+        if (_prevStageButton != null) _prevStageButton.interactable = true;
+        if (_nextStageButton != null) _nextStageButton.interactable = true;
+        if (_worldListButton != null) _worldListButton.interactable = true;
+        if (_generateButton != null) _generateButton.interactable = true;
+        if (_stageNumberText != null) _stageNumberText.gameObject.SetActive(true);
         
         LoadStage(_currentStageIndex);
     }
@@ -466,6 +536,7 @@ case EMapObjectType.Wall: return _wallPrefab;
         }
 
         string[] jsonFiles = System.IO.Directory.GetFiles(streamingAssetsPath, "*.json");
+        System.Array.Sort(jsonFiles); // Sort files by name to ensure consistent ordering
         int newMapsLoaded = 0;
         
         foreach (string filePath in jsonFiles)
@@ -483,8 +554,14 @@ case EMapObjectType.Wall: return _wallPrefab;
                 // Create a TextAsset from the JSON text
                 TextAsset textAsset = new TextAsset(jsonText);
                 
+                int levelIndex = _levelJsonList.Count;
                 _levelJsonList.Add(textAsset);
                 _loadedFilePaths.Add(filePath);
+                
+                // Store filename without path and extension
+                string filename = System.IO.Path.GetFileNameWithoutExtension(filePath);
+                _levelFilenames[levelIndex] = filename;
+                
                 newMapsLoaded++;
             }
             catch (System.Exception e)
@@ -507,10 +584,11 @@ case EMapObjectType.Wall: return _wallPrefab;
         _currentMoveIndex = -1;
 
         var mainDrawerRect = _mainDrawer.GetComponent<RectTransform>();
-        mainDrawerRect.anchorMin = Vector2.zero;
-        mainDrawerRect.anchorMax = Vector2.one;
+        mainDrawerRect.anchorMin = new Vector2(0.5f, 0.5f);
+        mainDrawerRect.anchorMax = new Vector2(0.5f, 0.5f);
+        mainDrawerRect.pivot = new Vector2(0.5f, 0.5f);
         mainDrawerRect.anchoredPosition = Vector2.zero;
-        mainDrawerRect.sizeDelta = Vector2.one;
+        mainDrawerRect.sizeDelta = new Vector2(800f, 800f);
 
         _mainDrawer.DrawMap(_currentMapData, _currentMoveIndex, true);
 

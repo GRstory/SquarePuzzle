@@ -14,6 +14,7 @@ public class WorldListPanel : MonoBehaviour
     
     private List<GameObject> _previewList = new List<GameObject>();
     private List<TextAsset> _fullLevelList = new List<TextAsset>(); // 전체 레벨 목록 저장
+    private Dictionary<int, string> _levelFilenames = new Dictionary<int, string>(); // 레벨 인덱스 -> 파일명 매핑
     private int _selectedMoveCount = -1; // -1 means "All"
     private SortMode _currentSortMode = SortMode.ByIndex;
     private System.Action<int> _onWorldSelectedCallback; // Callback when world is selected
@@ -25,9 +26,10 @@ public class WorldListPanel : MonoBehaviour
         ByObjectCount // 기물 개수 순
     }
 
-    public void Initialize(List<TextAsset> levelJsonList, System.Action<int> onWorldSelected = null, System.Action<bool> onVisibilityChanged = null)
+    public void Initialize(List<TextAsset> levelJsonList, Dictionary<int, string> levelFilenames, System.Action<int> onWorldSelected = null, System.Action<bool> onVisibilityChanged = null)
     {
         _fullLevelList = levelJsonList;
+        _levelFilenames = levelFilenames;
         _onWorldSelectedCallback = onWorldSelected;
         _onVisibilityChanged = onVisibilityChanged;
         
@@ -79,7 +81,17 @@ public class WorldListPanel : MonoBehaviour
         // Set label text
         if (labelText != null)
         {
-            labelText.text = $"World {index}";
+            // Get filename if available
+            string filename = _levelFilenames.ContainsKey(index) ? _levelFilenames[index] : "";
+            
+            if (!string.IsNullOrEmpty(filename))
+            {
+                labelText.text = $"World {index}\n<size=14>{filename}</size>";
+            }
+            else
+            {
+                labelText.text = $"World {index}";
+            }
         }
 
         // Get or create StageDrawer
